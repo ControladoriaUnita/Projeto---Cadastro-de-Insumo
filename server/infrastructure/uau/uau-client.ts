@@ -1,0 +1,165 @@
+/**
+ * Cliente HTTP da API UAU (Globaltec/Senior). Roda só no servidor: credenciais e token
+ * nunca vão ao navegador, nem para o banco, nem para os logs.
+ *
+ *  - Autenticação: Autenticador/AutenticarUsuario → token em cache por 59 minutos;
+ *    chamadas simultâneas compartilham o mesmo login; HTTP 401 renova o token uma vez.
+ *  - Toda rota é POST em <base>/api/v1.0/<Controller>/<Metodo> com X-INTEGRATION-Authorization.
+ *  - Proteção: rotas que gravam só passam com `writeEnabled` (UAU_GRAVACAO=real).
+ */
+import { IntegrationError } from '../../application/context'
+
+export interface UauConfig {
+  baseUrl: string
+  integrationToken: string
+  login: string
+  password: string
+  writeEnabled: boolean
+}
+
+export interface UauResponse {
+  route: string
+  status: number
+  ok: boolean
+  ms: number
+  /** Resposta já normalizada (ver normalize) */
+  data: unknown
+}
+
+// Rotas de consulta começam com estes verbos; qualquer outra altera dados reais do UAU.
+const READ_PREFIXES = ['Consultar', 'Obter', 'Buscar', 'Exportar', 'Retornar', 'Listar']
+
+export function isReadRoute(route: string): boolean {
+  const action = route.split('/').pop() ?? ''
+  return READ_PREFIXES.some((p) => action.startsWith(p))
+}
+
+const TOKEN_TTL_MS = 59 * 60 * 1000
+const DEFAULT_TIMEOUT_MS = 60_000
+
+export class UauClient {
+  private token: string | null = null
+  private tokenExpiresAt = 0
+  private pendingLogin: Promise<string> | null = null
+
+  constructor(private readonly config: UauConfig) {}
+
+  /** Chama uma rota autenticado. Devolve status e dados normalizados (sem campos de senha/token). */
+  async call(route: string, body: unknown, opts: { timeoutMs?: number } = {}): Promise<UauResponse> {
+    if (!/^[A-Za-z]+\/[A-Za-z0-9]+$/.test(route) || /^Autenticador\//i.test(route)) {
+      throw new IntegrationError(`Rota UAU inválida: ${route}`)
+    }
+    if (!isReadRoute(route) && !this.config.writeEnabled) {
+      throw new IntegrationError(`"${route}" grava no UAU e a gravação está desligada (UAU_GRAVACAO=simulacao).`)
+    }
+    const started = Date.now()
+    let res = await this.post(route, body, await this.getToken(), opts.timeoutMs)
+    if (res.status === 401) {
+      // O token pode ter sido invalidado no servidor antes dos 59 minutos
+      this.token = null
+      res = await this.post(route, body, await this.getToken(), opts.timeoutMs)
+    }
+    return {
+      route,
+      status: res.status,
+      ok: res.status >= 200 && res.status < 300,
+      ms: Date.now() - started,
+      data: redact(normalize(res.data)),
+    }
+  }
+
+  private async getToken(): Promise<string> {
+    if (this.token && Date.now() < this.tokenExpiresAt) return this.token
+    this.pendingLogin ??= this.authenticate().finally(() => {
+      this.pendingLogin = null
+    })
+    return this.pendingLogin
+  }
+
+  private async authenticate(): Promise<string> {
+    const res = await this.post('Autenticador/AutenticarUsuario', { Login: this.config.login, Senha: this.config.password })
+    if (res.status !== 200 || typeof res.data !== 'string' || !res.data.trim()) {
+      // Não repassa a resposta inteira: em sucesso parcial poderia conter o token
+      const reason = res.data && typeof res.data === 'object' ? String((res.data as Record<string, unknown>).Descricao ?? '') : ''
+      throw new IntegrationError(`Falha na autenticação UAU (HTTP ${res.status}) ${reason}`.trim())
+    }
+    this.token = res.data.trim()
+    this.tokenExpiresAt = Date.now() + TOKEN_TTL_MS
+    return this.token
+  }
+
+  private async post(route: string, body: unknown, token?: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<{ status: number; data: unknown }> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-INTEGRATION-Authorization': this.config.integrationToken,
+    }
+    if (token) headers.Authorization = token
+    const res = await fetch(`${this.config.baseUrl.replace(/\/+$/, '')}/api/v1.0/${route}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body ?? {}),
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    const text = await res.text()
+    try {
+      return { status: res.status, data: JSON.parse(text) }
+    } catch {
+      return { status: res.status, data: text }
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------- normalização
+
+/*
+ * O UAU responde em dois formatos:
+ *  1. lista simples de objetos;
+ *  2. "DataSet": [{ MyTable: [linhaDeTipos, ...linhas] }] ou [linhaDeTipos, ...linhas], em que a
+ *     linha de tipos tem valores "System.String, mscorlib, ..." e nulos vêm como a string "null".
+ */
+const isTypeRow = (row: unknown) =>
+  !!row && typeof row === 'object' && Object.values(row).some((v) => typeof v === 'string' && v.includes(', mscorlib'))
+
+export function normalize(data: unknown): unknown {
+  if (!Array.isArray(data)) return data
+  let rows: unknown[] = data
+  const first = rows[0]
+  if (rows.length === 1 && first && typeof first === 'object' && !Array.isArray(first)) {
+    const values = Object.values(first)
+    if (values.length === 1 && Array.isArray(values[0])) rows = values[0]
+  }
+  if (isTypeRow(rows[0])) rows = rows.slice(1)
+  return rows.map((row) =>
+    row && typeof row === 'object' ? Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v === 'null' ? null : v])) : row,
+  )
+}
+
+/** Acha a lista de registros em qualquer resposta (lista direta ou objeto que embrulha a lista). */
+export function extractRows(data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) {
+    const rows = normalize(data) as unknown[]
+    if (rows.length === 1 && rows[0] && typeof rows[0] === 'object' && !Array.isArray(rows[0])) {
+      const inner = extractRows(rows[0])
+      if (inner.length) return inner
+    }
+    return rows.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
+  }
+  if (!data || typeof data !== 'object') return []
+  let best: Record<string, unknown>[] = []
+  for (const v of Object.values(data)) {
+    if (!Array.isArray(v)) continue
+    const inner = extractRows(v)
+    if (inner.length > best.length) best = inner
+  }
+  return best
+}
+
+/** Remove qualquer campo cujo nome contenha "senha", "password" ou "token". */
+export function redact(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redact)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, /senha|password|token/i.test(k) ? '(omitido)' : redact(v)]))
+  }
+  return value
+}

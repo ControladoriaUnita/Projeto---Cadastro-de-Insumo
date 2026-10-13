@@ -1,0 +1,11 @@
+# Credenciais (UAU, Supabase) nunca vão para o GitHub
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+!.env.example
+.vercel
+*.log
+.DS_Store
+Thumbs.db
