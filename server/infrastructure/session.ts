@@ -9,12 +9,13 @@ import { createMemoryRepositories, getMemoryStore } from './memory/memory-reposi
 import { DEMO_USERS, seedMemoryStore } from './memory/seed'
 import { getServiceClient, verifyAccessToken } from './supabase/client'
 import { createSupabaseRepositories } from './supabase/supabase-repositories'
+import { envOption, envValue } from './env'
 import { uauMode } from './uau'
 
 export type DataSource = 'memory' | 'supabase'
 
 export function dataSource(): DataSource {
-  return process.env.DATA_SOURCE === 'supabase' ? 'supabase' : 'memory'
+  return envOption('DATA_SOURCE') === 'supabase' ? 'supabase' : 'memory'
 }
 
 export interface Session {
@@ -70,8 +71,8 @@ export function authConfig(): AuthConfigDTO {
   const supabase = dataSource() === 'supabase'
   return {
     dataSource: dataSource(),
-    supabaseUrl: supabase ? (process.env.SUPABASE_URL ?? null) : null,
-    supabaseAnonKey: supabase ? (process.env.SUPABASE_ANON_KEY ?? null) : null,
+    supabaseUrl: supabase ? envValue('SUPABASE_URL') : null,
+    supabaseAnonKey: supabase ? envValue('SUPABASE_ANON_KEY') : null,
     corporateDomains: corporateDomains(),
   }
 }

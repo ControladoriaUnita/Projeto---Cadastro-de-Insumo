@@ -6,9 +6,10 @@
  * têm RLS ligado e nenhuma política para anon/authenticated: só a service role (servidor) lê e grava.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { envValue } from '../env'
 
 function env(name: string): string {
-  const v = process.env[name]
+  const v = envValue(name)
   if (!v) throw new Error(`Variável de ambiente ausente: ${name}`)
   return v
 }

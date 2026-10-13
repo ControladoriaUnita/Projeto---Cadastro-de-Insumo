@@ -5,6 +5,7 @@
  *   graph → envio real pelo Microsoft 365
  */
 import { AppError } from '../../application/context'
+import { envOption } from '../env'
 import type { Mailer } from '../../application/ports'
 import { GraphMailer } from './graph-mailer'
 import { DisabledMailer, LogMailer } from './log-mailer'
@@ -18,7 +19,7 @@ const list = (v: string | undefined) =>
     .filter(Boolean)
 
 export function emailProvider(env: NodeJS.ProcessEnv = process.env): 'none' | 'log' | 'graph' {
-  const p = env.EMAIL_PROVIDER
+  const p = envOption('EMAIL_PROVIDER', env)
   return p === 'graph' || p === 'none' ? p : 'log'
 }
 

@@ -3,14 +3,20 @@
  * para reaproveitar o token e o cache do cadastro entre requisições.
  */
 import { AppError } from '../../application/context'
+import { envOption } from '../env'
 import type { UauGateway } from '../../application/ports'
 import { HttpUauGateway } from './http-uau-gateway'
 import { MockUauGateway } from './mock-uau-gateway'
 
 let instance: UauGateway | null = null
 
+/** UAU_GRAVACAO=real libera a gravação no UAU real (no simulado sempre grava na memória). */
+export function uauWriteEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return envOption('UAU_GRAVACAO', env) === 'real'
+}
+
 export function uauMode(env: NodeJS.ProcessEnv = process.env): 'mock' | 'real' {
-  return env.UAU_MODE === 'real' ? 'real' : 'mock'
+  return envOption('UAU_MODE', env) === 'real' ? 'real' : 'mock'
 }
 
 export function getUauGateway(env: NodeJS.ProcessEnv = process.env): UauGateway {
@@ -27,7 +33,7 @@ export function getUauGateway(env: NodeJS.ProcessEnv = process.env): UauGateway 
     integrationToken: env.UAU_INTEGRATION_TOKEN!,
     login: env.UAU_LOGIN!,
     password: env.UAU_PASSWORD!,
-    writeEnabled: env.UAU_GRAVACAO === 'real',
+    writeEnabled: uauWriteEnabled(env),
   })
   return instance
 }

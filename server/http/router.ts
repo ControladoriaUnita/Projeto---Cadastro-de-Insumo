@@ -23,7 +23,8 @@ import * as catalog from '../application/use-cases/catalog'
 import * as requests from '../application/use-cases/requests'
 import { authConfig, corporateDomains, dataSource, demoUsers, openSession, publicRepositories } from '../infrastructure/session'
 import { emailProvider, getMailer } from '../infrastructure/email'
-import { getUauGateway, uauMode } from '../infrastructure/uau'
+import { envPresence } from '../infrastructure/env'
+import { getUauGateway, uauMode, uauWriteEnabled } from '../infrastructure/uau'
 
 type Params = Record<string, string>
 type Handler = (a: { url: URL; params: Params; deps: UseCaseDeps; body: () => Promise<unknown> }) => Promise<unknown>
@@ -56,7 +57,7 @@ function toUserDTO(actor: Actor): UserDTO {
 route('GET', '/me', async ({ deps }) => ({ user: toUserDTO(deps.ctx.actor) }))
 route('GET', '/config', async (): Promise<AppConfigDTO> => {
   const mode = uauMode()
-  return { dataSource: dataSource(), uauMode: mode, uauWriteEnabled: mode === 'mock' || process.env.UAU_GRAVACAO === 'real', emailProvider: emailProvider() }
+  return { dataSource: dataSource(), uauMode: mode, uauWriteEnabled: mode === 'mock' || uauWriteEnabled(), emailProvider: emailProvider() }
 })
 
 // ----------------------------------------------------------------------------- solicitações
@@ -122,7 +123,10 @@ export async function handle(req: Request): Promise<Response> {
   const path = resolvePath(url)
 
   try {
-    if (path === '/health') return json({ ok: true, time: new Date().toISOString() }, 200, correlationId)
+    if (path === '/health') {
+      // Diagnóstico de deploy: modo atual e quais variáveis existem (só sim/não, nunca valores)
+      return json({ ok: true, time: new Date().toISOString(), dataSource: dataSource(), uauMode: uauMode(), env: envPresence() }, 200, correlationId)
+    }
     // Pública: a tela precisa saber, antes do login, se usa Supabase ou o modo demonstração
     if (path === '/auth-config') return json(authConfig(), 200, correlationId)
     // Pública: pedido de acesso feito na tela de login (não cria conta)
