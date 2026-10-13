@@ -7,6 +7,7 @@ import type { InsumoDraft } from '../../shared/domain/insumo/draft'
 import type { UauConfirmBody, UauInsertBody } from '../../shared/domain/insumo/uau-payload'
 import type { RequestKind, Urgency } from '../../shared/domain/request/kinds'
 import type { RequestEventType, RequestStatus } from '../../shared/domain/request/workflow'
+import type { RoleKey } from '../../shared/domain/roles'
 import type { Actor, RequestContext } from './context'
 
 // ----------------------------------------------------------------------------- solicitações
@@ -75,9 +76,23 @@ export interface IdentityRepository {
   loadActor(userId: string): Promise<Actor | null>
 }
 
+export interface NewAccessRequest {
+  email: string
+  fullName: string
+  requestedRole: RoleKey
+  workName: string | null
+  message: string | null
+}
+
+export interface AccessRequestRepository {
+  /** Grava o pedido; 'duplicate' quando já existe pedido em aberto para o e-mail. */
+  createPending(input: NewAccessRequest): Promise<'created' | 'duplicate'>
+}
+
 export interface Repositories {
   requests: RequestRepository
   identity: IdentityRepository
+  accessRequests: AccessRequestRepository
 }
 
 // ----------------------------------------------------------------------------- UAU

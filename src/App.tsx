@@ -9,6 +9,7 @@ import { ApprovalPage } from '@/features/approval/ApprovalPage'
 import { ApprovalQueuePage } from '@/features/approval/ApprovalQueuePage'
 import { AccessPendingPage } from '@/features/auth/AccessPendingPage'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { RequestAccessPage } from '@/features/auth/RequestAccessPage'
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { CatalogPage } from '@/features/catalog/CatalogPage'
 import { DraftPage } from '@/features/drafting/DraftPage'
@@ -61,6 +62,7 @@ export function App() {
     <Routes>
       <Route path="/entrar" element={<LoginPage />} />
       <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
+      <Route path="/solicitar-acesso" element={<RequestAccessPage />} />
       <Route element={<Protected />}>
         <Route index element={<Home />} />
         {/* Obra */}

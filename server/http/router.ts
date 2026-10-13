@@ -4,6 +4,7 @@
  */
 import { z, ZodError, type ZodTypeAny } from 'zod'
 import {
+  accessRequestSchema,
   approveSchema,
   catalogQuerySchema,
   commentSchema,
@@ -17,9 +18,10 @@ import {
 import { ROLE_LABELS } from '../../shared/domain/roles'
 import { AppError, toAppError, type Actor, type RequestContext } from '../application/context'
 import type { UseCaseDeps } from '../application/ports'
+import { submitAccessRequest } from '../application/use-cases/access-requests'
 import * as catalog from '../application/use-cases/catalog'
 import * as requests from '../application/use-cases/requests'
-import { authConfig, dataSource, demoUsers, openSession } from '../infrastructure/session'
+import { authConfig, corporateDomains, dataSource, demoUsers, openSession, publicRepositories } from '../infrastructure/session'
 import { emailProvider, getMailer } from '../infrastructure/email'
 import { getUauGateway, uauMode } from '../infrastructure/uau'
 
@@ -97,6 +99,16 @@ function errorResponse(err: AppError, correlationId: string) {
   return json(body, err.status, correlationId)
 }
 
+async function readJson(req: Request): Promise<unknown> {
+  const text = await req.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    throw new AppError('INVALID_JSON', 'Corpo da requisição inválido.', 400)
+  }
+}
+
 function resolvePath(url: URL): string {
   // Na Vercel o rewrite envia /api/router?__path=<resto>; localmente a URL chega como /api/<resto>
   const fromRewrite = url.searchParams.get('__path')
@@ -113,6 +125,11 @@ export async function handle(req: Request): Promise<Response> {
     if (path === '/health') return json({ ok: true, time: new Date().toISOString() }, 200, correlationId)
     // Pública: a tela precisa saber, antes do login, se usa Supabase ou o modo demonstração
     if (path === '/auth-config') return json(authConfig(), 200, correlationId)
+    // Pública: pedido de acesso feito na tela de login (não cria conta)
+    if (path === '/access-requests' && req.method === 'POST') {
+      const input = parse(accessRequestSchema, await readJson(req))
+      return json(await submitAccessRequest((await publicRepositories()).accessRequests, input, { corporateDomains: corporateDomains() }), 201, correlationId)
+    }
 
     if (dataSource() === 'memory' && process.env.VERCEL_ENV === 'production' && process.env.ALLOW_DEMO_MODE !== 'true') {
       throw new AppError('DEMO_DISABLED', 'Modo demonstração desligado em produção. Configure DATA_SOURCE=supabase.', 503)
@@ -151,15 +168,7 @@ export async function handle(req: Request): Promise<Response> {
       },
     }
     const params = Object.fromEntries(match.r.keys.map((k, i) => [k, decodeURIComponent(match.m![i + 1]!)]))
-    const body = async () => {
-      const text = await req.text()
-      if (!text) return {}
-      try {
-        return JSON.parse(text) as unknown
-      } catch {
-        throw new AppError('INVALID_JSON', 'Corpo da requisição inválido.', 400)
-      }
-    }
+    const body = () => readJson(req)
     const result = await match.r.handler({ url, params, deps, body })
     return json(result ?? { ok: true }, match.r.status, correlationId)
   } catch (err) {

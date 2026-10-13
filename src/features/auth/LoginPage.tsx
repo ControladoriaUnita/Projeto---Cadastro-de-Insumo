@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { ArrowLeft, LogIn, Mail } from 'lucide-react'
 import { Alert, Button, Field, Input } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
@@ -97,6 +97,12 @@ export function LoginPage() {
           Esqueci minha senha
         </button>
       </form>
+      <div className="mt-6 border-t border-border pt-4 text-center text-sm text-text-muted">
+        Ainda não tem acesso?{' '}
+        <Link to="/solicitar-acesso" className="font-medium text-primary hover:underline">
+          Solicitar acesso
+        </Link>
+      </div>
     </AuthLayout>
   )
 }

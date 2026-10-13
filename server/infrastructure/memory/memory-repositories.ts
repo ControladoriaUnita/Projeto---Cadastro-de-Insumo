@@ -3,18 +3,20 @@
  * Mesmas garantias da versão Supabase: numeração sequencial e atualização condicionada à situação.
  */
 import type { Actor } from '../../application/context'
-import type { EventRecord, NewRequestRecord, Repositories, RequestFilter, RequestPatch, RequestRecord } from '../../application/ports'
+import type { EventRecord, NewAccessRequest, NewRequestRecord, Repositories, RequestFilter, RequestPatch, RequestRecord } from '../../application/ports'
 
 export interface MemoryStore {
   requests: Map<string, RequestRecord>
   events: EventRecord[]
   users: Map<string, Actor>
+  /** Pedidos de acesso da tela de login (só e-mail e status importam aqui) */
+  accessRequests: (NewAccessRequest & { status: 'pendente' })[]
   nextNumber: number
   seeded: boolean
 }
 
 export function createMemoryStore(): MemoryStore {
-  return { requests: new Map(), events: [], users: new Map(), nextNumber: 1, seeded: false }
+  return { requests: new Map(), events: [], users: new Map(), accessRequests: [], nextNumber: 1, seeded: false }
 }
 
 /** Uma instância por processo (sobrevive ao recarregamento de módulos do Vite). */
@@ -27,6 +29,13 @@ const clone = <T>(v: T): T => structuredClone(v)
 
 export function createMemoryRepositories(store: MemoryStore, now: () => Date = () => new Date()): Repositories {
   return {
+    accessRequests: {
+      async createPending(input) {
+        if (store.accessRequests.some((r) => r.email === input.email)) return 'duplicate'
+        store.accessRequests.push({ ...clone(input), status: 'pendente' })
+        return 'created'
+      },
+    },
     identity: {
       async loadActor(userId) {
         const user = store.users.get(userId)

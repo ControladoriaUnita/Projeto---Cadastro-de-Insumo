@@ -37,9 +37,9 @@ const fail = (msg) => {
 
 console.log(`Projeto: ${new URL(process.env.SUPABASE_URL).host} · DATA_SOURCE=${process.env.DATA_SOURCE ?? '(vazio)'}`)
 
-for (const table of ['profiles', 'insumo_requests', 'insumo_request_events']) {
+for (const table of ['profiles', 'insumo_requests', 'insumo_request_events', 'access_requests']) {
   const { count, error } = await service.from(table).select('*', { count: 'exact', head: true })
-  if (error || typeof count !== 'number') fail(`${table}: ${error?.message || 'sem resposta da API'} — a migration 001 foi aplicada?`)
+  if (error || typeof count !== 'number') fail(`${table}: ${error?.message || 'sem resposta da API'} — as migrations 001 e 002 foram aplicadas?`)
   else console.log(`✓ ${table}: ${count} registro(s)`)
 }
 

@@ -8,7 +8,7 @@ import { AuthLayout } from './AuthLayout'
 const MIN_LENGTH = 8
 
 /**
- * Destino do link "esqueci minha senha" (e do convite por e-mail). O Supabase abre a sessão
+ * Destino do link de convite e do "esqueci minha senha". O Supabase abre a sessão
  * a partir do link; aqui a pessoa define a nova senha.
  */
 export function ResetPasswordPage() {
@@ -56,7 +56,7 @@ export function ResetPasswordPage() {
     )
 
   return (
-    <AuthLayout title="Defina sua nova senha" description={recovering ? `Para ${sessionEmail}.` : `Você está conectado como ${sessionEmail}.`}>
+    <AuthLayout title="Defina sua senha" description={recovering ? `Para ${sessionEmail}.` : `Você está conectado como ${sessionEmail}.`}>
       <form className="grid gap-4" onSubmit={submit}>
         <Field label="Nova senha" hint={`Pelo menos ${MIN_LENGTH} caracteres.`}>
           <Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus />

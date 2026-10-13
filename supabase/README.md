@@ -7,26 +7,43 @@ O que fica no Supabase:
 | `profiles` | um perfil por usuário do Supabase Auth: nome, e-mail, papel (`obra`, `analista`, `gestor`), obra padrão e se está ativo |
 | `insumo_requests` | as solicitações, com o rascunho do cadastro (`draft`, em JSON) e o resultado no UAU |
 | `insumo_request_events` | o histórico de cada solicitação (não pode ser alterado nem apagado) |
+| `access_requests` | os pedidos de acesso feitos na tela de login |
 
 O cadastro de insumos continua no UAU, que é a fonte oficial; a plataforma lê de lá.
 
 ## 1. Criar as tabelas
 
-No painel do Supabase: **SQL Editor → New query**, cole todo o conteúdo de
-[`migrations/001_initial_schema.sql`](migrations/001_initial_schema.sql) e clique em **Run**.
-Deve terminar com "Success. No rows returned".
+No painel do Supabase: **SQL Editor → New query**, cole o conteúdo de cada arquivo de
+[`migrations/`](migrations/), **na ordem**, e clique em **Run**. Cada um deve terminar com
+"Success. No rows returned". Cada arquivo roda uma vez só.
 
-Rode só uma vez. Mudanças futuras no banco viram novos arquivos (`002_...sql`, `003_...sql`), aplicados na ordem.
+| Arquivo | O que faz |
+|---|---|
+| `001_initial_schema.sql` | perfis, solicitações e histórico |
+| `002_access_requests.sql` | pedidos de acesso e criação automática do perfil aprovado |
 
-## 2. Criar os usuários
+**Importante:** desligue o cadastro aberto em **Authentication → Sign In / Providers →
+"Allow new users to sign up"**. Só a gestão cria usuários (passo 2).
 
-**Authentication → Users → Add user → Create new user**: e-mail e senha, com
-"Auto Confirm User" marcado. O banco cria o perfil sozinho, **inativo** e com papel `obra`.
-Enquanto estiver inativo, a pessoa entra mas vê "Usuário sem perfil".
+## 2. Liberar um acesso (fluxo normal)
 
-## 3. Liberar e definir o papel
+Ninguém cria conta pela tela: quem precisa de acesso clica em **"Solicitar acesso"** no login.
 
-No **SQL Editor**, ajuste e rode (um bloco por pessoa):
+1. **Table Editor → `access_requests`**: veja os pedidos com `status = pendente`.
+2. Para liberar: mude `status` para **`aprovado`**. Se quiser outro papel que não o pedido,
+   preencha `approved_role` (`obra`, `analista` ou `gestor`). Para negar: `recusado`.
+   O campo `notes` é para anotações internas.
+3. **Authentication → Users → Add user → Send invitation** com o e-mail do pedido. A pessoa recebe
+   um e-mail, clica no link e define a própria senha (tela "Defina sua senha").
+4. Pronto: o banco cria o perfil **ativo**, com o nome, o papel e a obra do pedido, e marca o
+   pedido como `atendido`.
+
+> Sem pedido aprovado, o usuário criado fica **inativo** (vê "Acesso aguardando liberação")
+> até ser liberado pelo passo 3.
+
+## 3. Ajustar papéis à mão
+
+Para mudar papel, obra ou liberar alguém que não fez pedido, no **SQL Editor** (um bloco por pessoa):
 
 ```sql
 -- Gestão: acesso a tudo, aprova e grava no UAU
@@ -58,7 +75,7 @@ Para bloquear alguém sem apagar o histórico: `update public.profiles set activ
 
 E `DATA_SOURCE=supabase`. Localmente, no `.env.local`; na Vercel, em Settings → Environment Variables.
 
-## 5. Endereços do login (link de "esqueci minha senha")
+## 5. Endereços do login (convite e "esqueci minha senha")
 
 **Authentication → URL Configuration**:
 
@@ -66,7 +83,7 @@ E `DATA_SOURCE=supabase`. Localmente, no `.env.local`; na Vercel, em Settings �
 - **Redirect URLs**: adicione `https://<seu-app>.vercel.app/redefinir-senha` e, para testar no
   computador, `http://localhost:5174/redefinir-senha`.
 
-Sem isso, o link do e-mail de recuperação abre o endereço errado.
+O convite abre o Site URL e o app leva a pessoa direto para "Defina sua senha". Sem esses endereços, os links dos e-mails abrem o lugar errado.
 
 ## Como o login funciona
 

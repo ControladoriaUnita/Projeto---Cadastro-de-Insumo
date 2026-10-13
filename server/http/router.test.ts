@@ -33,6 +33,7 @@ beforeEach(() => {
   store.requests.clear()
   store.events.length = 0
   store.nextNumber = 1
+  store.accessRequests.length = 0
   store.seeded = false
   uau = new MockUauGateway()
   setUauGatewayForTests(uau)
@@ -65,8 +66,35 @@ describe('configuração de login', () => {
     const res = await handle(new Request('http://localhost/api/auth-config'))
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expect(body).toEqual({ dataSource: 'memory', supabaseUrl: null, supabaseAnonKey: null })
+    expect(body).toEqual({ dataSource: 'memory', supabaseUrl: null, supabaseAnonKey: null, corporateDomains: ['unitaengenharia.com.br'] })
     expect(JSON.stringify(body)).not.toMatch(/service/i)
+  })
+})
+
+describe('pedido de acesso (sem login)', () => {
+  const post = async (body: unknown) => {
+    const res = await handle(new Request('http://localhost/api/access-requests', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }))
+    return { status: res.status, data: (await res.json()) as { error?: { code: string } } }
+  }
+  const valid = { fullName: 'Maria Souza', email: 'Maria.Souza@UnitaEngenharia.com.br', requestedRole: 'obra', workName: 'Joy+ Evans' }
+
+  it('grava o pedido com o e-mail em minúsculas e não cria usuário', async () => {
+    expect((await post(valid)).status).toBe(201)
+    const store = getMemoryStore()
+    expect(store.accessRequests).toEqual([expect.objectContaining({ email: 'maria.souza@unitaengenharia.com.br', requestedRole: 'obra', status: 'pendente' })])
+    expect([...store.users.values()].some((u) => u.email === 'maria.souza@unitaengenharia.com.br')).toBe(false)
+  })
+
+  it('só aceita e-mail corporativo e exige a obra para o perfil obra', async () => {
+    expect((await post({ ...valid, email: 'maria@gmail.com' })).data.error?.code).toBe('EMAIL_NOT_CORPORATE')
+    expect((await post({ ...valid, workName: '' })).status).toBe(422)
+  })
+
+  it('repetido ou de robô responde igual, sem gravar de novo', async () => {
+    await post(valid)
+    expect((await post(valid)).status).toBe(201)
+    expect((await post({ ...valid, email: 'robo@unitaengenharia.com.br', website: 'http://spam' })).status).toBe(201)
+    expect(getMemoryStore().accessRequests).toHaveLength(1)
   })
 })
 

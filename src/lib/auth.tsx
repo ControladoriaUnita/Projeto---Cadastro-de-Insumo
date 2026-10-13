@@ -60,7 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // undefined = ainda verificando a sessão salva no navegador
   const [session, setSession] = useState<Session | null | undefined>(undefined)
-  const [recovering, setRecovering] = useState(false)
+  // Link de convite ou de "esqueci minha senha": a pessoa precisa definir a senha antes de usar o app.
+  // Lido antes de o Supabase consumir o "#…type=invite" da URL.
+  const [recovering, setRecovering] = useState(() => /[#&]type=(invite|recovery)\b/.test(window.location.hash))
   const [demoUser, setDemoUserState] = useState<string | null>(() => getDemoUser())
 
   useEffect(() => {

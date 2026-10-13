@@ -39,7 +39,22 @@ export interface AuthConfigDTO {
   supabaseUrl: string | null
   /** Chave anon/publishable: pública por natureza, só serve para login */
   supabaseAnonKey: string | null
+  /** Domínios aceitos no pedido de acesso (ex.: unitaengenharia.com.br) */
+  corporateDomains: string[]
 }
+
+export const accessRequestSchema = z
+  .object({
+    fullName: z.string().trim().min(3, 'Informe seu nome completo.').max(120),
+    email: z.string().trim().toLowerCase().email('E-mail inválido.').max(160),
+    requestedRole: z.enum(['obra', 'analista', 'gestor']),
+    workName: z.string().trim().max(120).default(''),
+    message: z.string().trim().max(1000).default(''),
+    /** Campo-isca invisível: robôs preenchem, pessoas não */
+    website: z.string().max(200).default(''),
+  })
+  .refine((v) => v.requestedRole !== 'obra' || v.workName.length >= 2, { message: 'Informe a obra.', path: ['workName'] })
+export type AccessRequestInput = z.infer<typeof accessRequestSchema>
 
 export interface AppConfigDTO {
   dataSource: 'memory' | 'supabase'

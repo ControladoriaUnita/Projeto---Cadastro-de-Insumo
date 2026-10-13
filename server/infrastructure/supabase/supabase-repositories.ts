@@ -70,8 +70,25 @@ function check<T>(result: { data: T; error: { message: string } | null }): T {
   return result.data
 }
 
+/** Código de erro do Postgres para violação de índice único */
+const UNIQUE_VIOLATION = '23505'
+
 export function createSupabaseRepositories(db: SupabaseClient): Repositories {
   return {
+    accessRequests: {
+      async createPending(input) {
+        const { error } = await db.from('access_requests').insert({
+          email: input.email,
+          full_name: input.fullName,
+          requested_role: input.requestedRole,
+          work_name: input.workName,
+          message: input.message,
+        })
+        if (error?.code === UNIQUE_VIOLATION) return 'duplicate'
+        if (error) throw new Error(`Supabase: ${error.message}`)
+        return 'created'
+      },
+    },
     identity: {
       async loadActor(userId): Promise<Actor | null> {
         const row = check(await db.from('profiles').select('id, full_name, email, role, work_name, active').eq('id', userId).maybeSingle())

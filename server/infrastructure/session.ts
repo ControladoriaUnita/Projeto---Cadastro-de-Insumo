@@ -1,6 +1,8 @@
 /**
  * Composição por requisição: escolhe os repositórios conforme DATA_SOURCE e identifica o usuário.
  */
+import type { AuthConfigDTO } from '../../shared/contracts'
+import { DEFAULT_CORPORATE_DOMAINS } from '../../shared/domain/access'
 import type { Actor } from '../application/context'
 import type { Repositories } from '../application/ports'
 import { createMemoryRepositories, getMemoryStore } from './memory/memory-repositories'
@@ -51,17 +53,35 @@ export async function openSession(headers: { authorization: string | null; demoU
   return actor ? { status: 'ok', session: { repos, actor } } : { status: 'unauthenticated' }
 }
 
+/** Domínios de e-mail aceitos no pedido de acesso (ACCESS_REQUEST_DOMAINS, separados por vírgula). */
+export function corporateDomains(): string[] {
+  const fromEnv = (process.env.ACCESS_REQUEST_DOMAINS ?? '')
+    .split(/[;,]/)
+    .map((d) => d.trim().toLowerCase().replace(/^@/, ''))
+    .filter(Boolean)
+  return fromEnv.length ? fromEnv : DEFAULT_CORPORATE_DOMAINS
+}
+
 /**
  * Configuração pública para a tela de login (sem sessão). A chave anon do Supabase é pública
  * por natureza (só permite login; as tabelas não aceitam acesso por ela).
  */
-export function authConfig(): { dataSource: DataSource; supabaseUrl: string | null; supabaseAnonKey: string | null } {
+export function authConfig(): AuthConfigDTO {
   const supabase = dataSource() === 'supabase'
   return {
     dataSource: dataSource(),
     supabaseUrl: supabase ? (process.env.SUPABASE_URL ?? null) : null,
     supabaseAnonKey: supabase ? (process.env.SUPABASE_ANON_KEY ?? null) : null,
+    corporateDomains: corporateDomains(),
   }
+}
+
+/** Repositórios para rotas públicas (sem usuário logado), como o pedido de acesso. */
+export async function publicRepositories(): Promise<Repositories> {
+  if (dataSource() === 'supabase') return createSupabaseRepositories(getServiceClient())
+  const store = getMemoryStore()
+  await seedMemoryStore(store, { withSampleRequests: uauMode() === 'mock' })
+  return createMemoryRepositories(store)
 }
 
 export function demoUsers() {
