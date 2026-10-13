@@ -6,7 +6,6 @@ import { Button } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/utils/cn'
 import { DemoUserSwitcher } from './DemoUserSwitcher'
-import { EnvironmentBanner } from './EnvironmentBanner'
 
 /** Header grafite fixo (56px) com borda laranja de 2px — DESIGN_SYSTEM §7. Menu filtrado pelo papel. */
 export function AppShell() {
@@ -52,7 +51,6 @@ export function AppShell() {
           </div>
         </div>
       </header>
-      <EnvironmentBanner />
       <main className="px-4 pt-4 pb-8 lg:px-6 2xl:px-10">
         <Outlet />
       </main>

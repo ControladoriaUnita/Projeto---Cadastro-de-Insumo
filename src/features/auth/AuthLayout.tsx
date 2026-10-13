@@ -7,7 +7,12 @@ import { Card } from '@/components/ui'
 export function AuthLayout({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
   return (
     <div className="relative flex min-h-full items-center justify-center overflow-hidden bg-background px-4 py-12">
-      <img src={pattern} alt="" aria-hidden className="pointer-events-none absolute bottom-0 left-0 h-32 max-w-none opacity-[0.07]" />
+      {/* Padrão "Diversos UN" repetido na horizontal para cobrir toda a largura da parte inferior */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-repeat-x bg-[length:auto_100%] opacity-[0.07]"
+        style={{ backgroundImage: `url(${pattern})` }}
+      />
       <div className="relative w-full max-w-md">
         <img src={logo} alt="Unità Engenharia" className="mx-auto mb-8 h-12" />
         <Card className="p-8">
