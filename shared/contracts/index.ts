@@ -32,6 +32,15 @@ export interface UserDTO {
   permissions: string[]
 }
 
+/** Configuração pública (sem login): como a tela deve autenticar. */
+export interface AuthConfigDTO {
+  /** memory = modo demonstração (sem login); supabase = login pelo Supabase Auth */
+  dataSource: 'memory' | 'supabase'
+  supabaseUrl: string | null
+  /** Chave anon/publishable: pública por natureza, só serve para login */
+  supabaseAnonKey: string | null
+}
+
 export interface AppConfigDTO {
   dataSource: 'memory' | 'supabase'
   /** mock = catálogo de exemplo; real = API UAU */

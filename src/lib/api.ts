@@ -2,7 +2,7 @@
  * Cliente HTTP da API (/api/*). O navegador nunca fala com o UAU: só com o nosso servidor.
  */
 import type { ApiErrorBody } from '@shared/contracts'
-import { isDemoMode, supabase } from './supabase'
+import { getSupabase } from './supabase'
 
 const DEMO_USER_KEY = 'insumos.demoUser'
 
@@ -37,10 +37,13 @@ export class ApiError extends Error {
 
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const headers: Record<string, string> = { 'content-type': 'application/json' }
+  const supabase = getSupabase()
   if (supabase) {
+    // Login real: o servidor valida o token e lê o papel em profiles
     const { data } = await supabase.auth.getSession()
     if (data.session) headers.authorization = `Bearer ${data.session.access_token}`
-  } else if (isDemoMode) {
+  } else {
+    // Modo demonstração: o servidor ignora este cabeçalho quando usa o Supabase
     const demo = getDemoUser()
     if (demo) headers['x-demo-user'] = demo
   }

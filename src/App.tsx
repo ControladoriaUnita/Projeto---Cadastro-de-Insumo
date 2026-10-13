@@ -7,7 +7,9 @@ import { RequirePermission } from '@/components/layout/RequirePermission'
 import { Alert, Spinner } from '@/components/ui'
 import { ApprovalPage } from '@/features/approval/ApprovalPage'
 import { ApprovalQueuePage } from '@/features/approval/ApprovalQueuePage'
+import { AccessPendingPage } from '@/features/auth/AccessPendingPage'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { CatalogPage } from '@/features/catalog/CatalogPage'
 import { DraftPage } from '@/features/drafting/DraftPage'
 import { DraftQueuePage } from '@/features/drafting/DraftQueuePage'
@@ -18,24 +20,33 @@ import { useAuth } from '@/lib/auth'
 
 const P = PERMISSIONS
 
+/** Só mostra o app para quem entrou e tem perfil ativo; o resto vai para a tela certa. */
 function Protected() {
-  const { hasSession, loading, user } = useAuth()
-  if (!hasSession) return <Navigate to="/entrar" replace />
-  if (loading)
-    return (
-      <div className="flex h-full items-center justify-center text-primary">
-        <Spinner />
-      </div>
-    )
-  if (!user)
-    return (
-      <div className="mx-auto max-w-md p-8">
-        <Alert tone="error" title="Usuário sem perfil">
-          Seu acesso ainda não foi liberado. Peça à gestão para definir seu papel (obra, analista ou gestão).
-        </Alert>
-      </div>
-    )
-  return <AppShell />
+  const { access, recovering, error } = useAuth()
+  // Link de "esqueci minha senha" caiu na página inicial: leva para definir a senha
+  if (recovering) return <Navigate to="/redefinir-senha" replace />
+  switch (access) {
+    case 'loading':
+      return (
+        <div className="flex h-full items-center justify-center text-primary">
+          <Spinner />
+        </div>
+      )
+    case 'signed-out':
+      return <Navigate to="/entrar" replace />
+    case 'inactive':
+      return <AccessPendingPage />
+    case 'error':
+      return (
+        <div className="mx-auto max-w-md p-8">
+          <Alert tone="error" title="Não foi possível entrar">
+            {error}
+          </Alert>
+        </div>
+      )
+    case 'ready':
+      return <AppShell />
+  }
 }
 
 function Home() {
@@ -49,6 +60,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/entrar" element={<LoginPage />} />
+      <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
       <Route element={<Protected />}>
         <Route index element={<Home />} />
         {/* Obra */}

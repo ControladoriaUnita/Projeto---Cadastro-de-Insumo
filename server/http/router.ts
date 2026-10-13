@@ -19,7 +19,7 @@ import { AppError, toAppError, type Actor, type RequestContext } from '../applic
 import type { UseCaseDeps } from '../application/ports'
 import * as catalog from '../application/use-cases/catalog'
 import * as requests from '../application/use-cases/requests'
-import { dataSource, demoUsers, openSession } from '../infrastructure/session'
+import { authConfig, dataSource, demoUsers, openSession } from '../infrastructure/session'
 import { emailProvider, getMailer } from '../infrastructure/email'
 import { getUauGateway, uauMode } from '../infrastructure/uau'
 
@@ -111,6 +111,8 @@ export async function handle(req: Request): Promise<Response> {
 
   try {
     if (path === '/health') return json({ ok: true, time: new Date().toISOString() }, 200, correlationId)
+    // Pública: a tela precisa saber, antes do login, se usa Supabase ou o modo demonstração
+    if (path === '/auth-config') return json(authConfig(), 200, correlationId)
 
     if (dataSource() === 'memory' && process.env.VERCEL_ENV === 'production' && process.env.ALLOW_DEMO_MODE !== 'true') {
       throw new AppError('DEMO_DISABLED', 'Modo demonstração desligado em produção. Configure DATA_SOURCE=supabase.', 503)
@@ -129,8 +131,12 @@ export async function handle(req: Request): Promise<Response> {
       throw new AppError(exists ? 'METHOD_NOT_ALLOWED' : 'NOT_FOUND', exists ? 'Método não permitido.' : 'Rota inexistente.', exists ? 405 : 404)
     }
 
-    const session = await openSession({ authorization: req.headers.get('authorization'), demoUser: req.headers.get('x-demo-user') })
-    if (!session) throw new AppError('UNAUTHENTICATED', 'Sessão inválida ou expirada. Entre novamente.', 401)
+    const opened = await openSession({ authorization: req.headers.get('authorization'), demoUser: req.headers.get('x-demo-user') })
+    if (opened.status === 'unauthenticated') throw new AppError('UNAUTHENTICATED', 'Sessão inválida ou expirada. Entre novamente.', 401)
+    if (opened.status === 'inactive') {
+      throw new AppError('PROFILE_INACTIVE', 'Seu acesso ainda não foi liberado. Peça à gestão para ativar seu perfil.', 403)
+    }
+    const { session } = opened
 
     const ctx: RequestContext = { correlationId, actor: session.actor, now: () => new Date() }
     // UAU e e-mail só são instanciados quando o caso de uso precisa deles

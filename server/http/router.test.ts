@@ -60,6 +60,16 @@ async function createAndDraft(): Promise<RequestDetailDTO> {
 
 const completeDraft = (d: InsumoDraft): InsumoDraft => ({ ...d, categoria: '007.003', grupo: 3, controle: 1, tipoPagamento: 0 })
 
+describe('configuração de login', () => {
+  it('é pública e nunca expõe a chave service_role', async () => {
+    const res = await handle(new Request('http://localhost/api/auth-config'))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body).toEqual({ dataSource: 'memory', supabaseUrl: null, supabaseAnonKey: null })
+    expect(JSON.stringify(body)).not.toMatch(/service/i)
+  })
+})
+
 describe('permissões por papel', () => {
   it('obra vê só as próprias solicitações; a semente tem 5 no total', async () => {
     const all = await call<RequestDTO[]>(GESTOR, 'GET', '/requests?scope=all')
