@@ -59,13 +59,17 @@ export class UauClient {
       this.token = null
       res = await this.post(route, body, await this.getToken(), opts.timeoutMs)
     }
-    return {
-      route,
-      status: res.status,
-      ok: res.status >= 200 && res.status < 300,
-      ms: Date.now() - started,
-      data: redact(normalize(res.data)),
-    }
+    const ms = Date.now() - started
+    log(`${route} → HTTP ${res.status} em ${ms} ms`)
+    return { route, status: res.status, ok: res.status >= 200 && res.status < 300, ms, data: redact(normalize(res.data)) }
+  }
+
+  /** Faz um login novo (ignora o token em cache) e devolve quanto tempo levou. Usado no diagnóstico. */
+  async checkLogin(): Promise<number> {
+    const started = Date.now()
+    this.token = null
+    await this.getToken()
+    return Date.now() - started
   }
 
   private async getToken(): Promise<string> {
@@ -78,10 +82,15 @@ export class UauClient {
 
   private async authenticate(): Promise<string> {
     const res = await this.post('Autenticador/AutenticarUsuario', { Login: this.config.login, Senha: this.config.password })
+    log(`login → HTTP ${res.status}`)
     if (res.status !== 200 || typeof res.data !== 'string' || !res.data.trim()) {
       // Não repassa a resposta inteira: em sucesso parcial poderia conter o token
       const reason = res.data && typeof res.data === 'object' ? String((res.data as Record<string, unknown>).Descricao ?? '') : ''
-      throw new IntegrationError(`Falha na autenticação UAU (HTTP ${res.status}) ${reason}`.trim())
+      const hint =
+        res.status === 401 || res.status === 400
+          ? ' Confira UAU_LOGIN, UAU_PASSWORD e UAU_INTEGRATION_TOKEN (na Vercel, cole os valores sem aspas).'
+          : ''
+      throw new IntegrationError(`O UAU recusou o login (HTTP ${res.status}). ${reason}${hint}`.trim())
     }
     this.token = res.data.trim()
     this.tokenExpiresAt = Date.now() + TOKEN_TTL_MS
@@ -95,19 +104,53 @@ export class UauClient {
       'X-INTEGRATION-Authorization': this.config.integrationToken,
     }
     if (token) headers.Authorization = token
-    const res = await fetch(`${this.config.baseUrl.replace(/\/+$/, '')}/api/v1.0/${route}`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body ?? {}),
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-    const text = await res.text()
     try {
-      return { status: res.status, data: JSON.parse(text) }
-    } catch {
-      return { status: res.status, data: text }
+      const res = await fetch(`${this.config.baseUrl.replace(/\/+$/, '')}/api/v1.0/${route}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body ?? {}),
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+      const text = await res.text()
+      try {
+        return { status: res.status, data: JSON.parse(text) }
+      } catch {
+        return { status: res.status, data: text }
+      }
+    } catch (err) {
+      // A requisição nem teve resposta: traduz a causa técnica para algo acionável
+      const message = describeNetworkError(err, timeoutMs)
+      log(`${route} → falhou: ${message}`, 'warn')
+      throw new IntegrationError(message)
     }
   }
+}
+
+// ----------------------------------------------------------------------------- erros e registro
+
+/** Uma linha por chamada nos logs do servidor (Vercel → Logs). Nunca inclui corpo ou credenciais. */
+function log(message: string, level: 'info' | 'warn' = 'info') {
+  console[level](`[uau] ${message}`)
+}
+
+/**
+ * Falhas em que o UAU não chegou a responder. O código vem em `err.cause.code` (fetch do Node/undici).
+ * Exportada para teste.
+ */
+export function describeNetworkError(err: unknown, timeoutMs: number): string {
+  const e = err as { name?: string; message?: string; cause?: { code?: string; message?: string } }
+  const code = e?.cause?.code ?? ''
+  if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
+    return `O UAU não respondeu em ${Math.round(timeoutMs / 1000)} s. Ele pode estar lento ou sobrecarregado; tente de novo.`
+  }
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'Endereço do UAU não encontrado. Confira UAU_BASE_URL.'
+  if (code === 'ECONNREFUSED') return 'O servidor do UAU recusou a conexão (porta fechada ou bloqueio de firewall).'
+  if (code === 'UND_ERR_CONNECT_TIMEOUT' || code === 'ETIMEDOUT') {
+    return 'Sem conexão com o UAU (tempo de conexão esgotado). Possível bloqueio por IP: o servidor publicado acessa por IPs diferentes do seu computador.'
+  }
+  if (code === 'ECONNRESET' || code === 'UND_ERR_SOCKET') return 'O UAU encerrou a conexão no meio (possível bloqueio por IP ou instabilidade).'
+  if (/CERT|SELF_SIGNED|UNABLE_TO_VERIFY/i.test(code)) return `Certificado HTTPS do UAU recusado (${code}).`
+  return `Falha de rede ao chamar o UAU: ${code || e?.cause?.message || e?.message || 'erro desconhecido'}.`
 }
 
 // ----------------------------------------------------------------------------- normalização

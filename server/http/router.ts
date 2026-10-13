@@ -20,6 +20,7 @@ import { AppError, toAppError, type Actor, type RequestContext } from '../applic
 import type { UseCaseDeps } from '../application/ports'
 import { submitAccessRequest } from '../application/use-cases/access-requests'
 import * as catalog from '../application/use-cases/catalog'
+import { checkIntegration } from '../application/use-cases/integration'
 import * as requests from '../application/use-cases/requests'
 import { authConfig, corporateDomains, dataSource, demoUsers, openSession, publicRepositories } from '../infrastructure/session'
 import { emailProvider, getMailer } from '../infrastructure/email'
@@ -86,6 +87,9 @@ route('GET', '/catalog/similar', async ({ deps, url }) => catalog.findSimilarIte
 route('GET', '/catalog/draft-context', async ({ deps, url }) =>
   catalog.getDraftContext(deps, url.searchParams.get('requestId') ? parse(uuidParam, url.searchParams.get('requestId')) : undefined))
 route('GET', '/catalog/items/:codigo', async ({ deps, params }) => catalog.getCatalogItem(deps, parse(z.string().max(20), params.codigo)))
+
+// ----------------------------------------------------------------------------- integração
+route('GET', '/integration/uau', async ({ deps }) => checkIntegration(deps, { emailProvider: emailProvider() }))
 
 // ----------------------------------------------------------------------------- dispatcher
 function json(data: unknown, status: number, correlationId: string) {

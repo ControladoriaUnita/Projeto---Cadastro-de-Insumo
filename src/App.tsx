@@ -12,6 +12,7 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { RequestAccessPage } from '@/features/auth/RequestAccessPage'
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { CatalogPage } from '@/features/catalog/CatalogPage'
+import { IntegrationPage } from '@/features/integration/IntegrationPage'
 import { DraftPage } from '@/features/drafting/DraftPage'
 import { DraftQueuePage } from '@/features/drafting/DraftQueuePage'
 import { NewRequestPage } from '@/features/requests/NewRequestPage'
@@ -76,6 +77,7 @@ export function App() {
         {/* Gestão */}
         <Route path={PATHS.approval} element={guard([P.approvalDecide], <ApprovalQueuePage />)} />
         <Route path="/aprovacao/:id" element={guard([P.approvalDecide], <ApprovalPage />)} />
+        <Route path={PATHS.integration} element={guard([P.approvalDecide], <IntegrationPage />)} />
         <Route path="*" element={<Home />} />
       </Route>
     </Routes>

@@ -8,6 +8,7 @@ import type { UauConfirmBody, UauInsertBody } from '../../shared/domain/insumo/u
 import type { RequestKind, Urgency } from '../../shared/domain/request/kinds'
 import type { RequestEventType, RequestStatus } from '../../shared/domain/request/workflow'
 import type { RoleKey } from '../../shared/domain/roles'
+import type { UauConnectionCheck } from '../../shared/contracts'
 import type { Actor, RequestContext } from './context'
 
 // ----------------------------------------------------------------------------- solicitações
@@ -109,8 +110,12 @@ export interface UauWriteResult {
   response: unknown
 }
 
+export type { UauCheckStep, UauConnectionCheck } from '../../shared/contracts'
+
 export interface UauGateway {
   readonly mode: 'mock' | 'real'
+  /** Testa login e uma consulta pequena; nunca lança erro (falhas viram passos com ok=false) */
+  checkConnection(): Promise<UauConnectionCheck>
   /** false = simulação: inserção e confirmação ficam bloqueadas */
   readonly writeEnabled: boolean
   /** Usuário do UAU gravado no campo "usuario" do cadastro */

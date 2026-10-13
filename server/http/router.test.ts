@@ -98,6 +98,16 @@ describe('pedido de acesso (sem login)', () => {
   })
 })
 
+describe('diagnóstico da integração', () => {
+  it('só a gestão vê; com o UAU simulado responde sem falhas', async () => {
+    expect((await call(ANALISTA, 'GET', '/integration/uau')).status).toBe(403)
+    const r = await call<{ uauMode: string; uau: { steps: { ok: boolean }[] } }>(GESTOR, 'GET', '/integration/uau')
+    expect(r.status).toBe(200)
+    expect(r.data.uauMode).toBe('mock')
+    expect(r.data.uau.steps.every((s) => s.ok)).toBe(true)
+  })
+})
+
 describe('permissões por papel', () => {
   it('obra vê só as próprias solicitações; a semente tem 5 no total', async () => {
     const all = await call<RequestDTO[]>(GESTOR, 'GET', '/requests?scope=all')

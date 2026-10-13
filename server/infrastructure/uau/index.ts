@@ -3,7 +3,7 @@
  * para reaproveitar o token e o cache do cadastro entre requisições.
  */
 import { AppError } from '../../application/context'
-import { envOption } from '../env'
+import { envOption, envValue } from '../env'
 import type { UauGateway } from '../../application/ports'
 import { HttpUauGateway } from './http-uau-gateway'
 import { MockUauGateway } from './mock-uau-gateway'
@@ -23,16 +23,24 @@ export function getUauGateway(env: NodeJS.ProcessEnv = process.env): UauGateway 
   if (instance) return instance
   if (uauMode(env) === 'mock') return (instance = new MockUauGateway())
 
-  const required = ['UAU_BASE_URL', 'UAU_INTEGRATION_TOKEN', 'UAU_LOGIN', 'UAU_PASSWORD'] as const
-  const missing = required.filter((k) => !env[k])
+  const config = {
+    baseUrl: envValue('UAU_BASE_URL', env),
+    integrationToken: envValue('UAU_INTEGRATION_TOKEN', env),
+    login: envValue('UAU_LOGIN', env),
+    // A senha pode conter aspas: só tira espaços das pontas, nunca aspas
+    password: env.UAU_PASSWORD?.trim() || null,
+  }
+  const missing = Object.entries({ UAU_BASE_URL: config.baseUrl, UAU_INTEGRATION_TOKEN: config.integrationToken, UAU_LOGIN: config.login, UAU_PASSWORD: config.password })
+    .filter(([, v]) => !v)
+    .map(([k]) => k)
   if (missing.length) {
     throw new AppError('UAU_NOT_CONFIGURED', `Integração UAU sem configuração no servidor: ${missing.join(', ')}.`, 503)
   }
   instance = new HttpUauGateway({
-    baseUrl: env.UAU_BASE_URL!,
-    integrationToken: env.UAU_INTEGRATION_TOKEN!,
-    login: env.UAU_LOGIN!,
-    password: env.UAU_PASSWORD!,
+    baseUrl: config.baseUrl!,
+    integrationToken: config.integrationToken!,
+    login: config.login!,
+    password: config.password!,
     writeEnabled: uauWriteEnabled(env),
   })
   return instance

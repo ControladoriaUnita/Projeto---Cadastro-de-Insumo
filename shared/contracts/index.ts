@@ -56,6 +56,32 @@ export const accessRequestSchema = z
   .refine((v) => v.requestedRole !== 'obra' || v.workName.length >= 2, { message: 'Informe a obra.', path: ['workName'] })
 export type AccessRequestInput = z.infer<typeof accessRequestSchema>
 
+// ----------------------------------------------------------------------------- integração (tela da gestão)
+
+/** Um passo do teste de conexão com o UAU. */
+export interface UauCheckStep {
+  name: string
+  ok: boolean
+  ms: number | null
+  detail: string
+}
+
+export interface UauConnectionCheck {
+  /** Host do servidor do UAU (sem credenciais) */
+  host: string | null
+  steps: UauCheckStep[]
+  /** Cadastro guardado em memória nesta instância do servidor */
+  catalog: { cached: boolean; items: number | null; loadedAt: string | null }
+}
+
+export interface IntegrationStatusDTO {
+  checkedAt: string
+  uauMode: 'mock' | 'real'
+  uauWriteEnabled: boolean
+  emailProvider: 'none' | 'log' | 'graph'
+  uau: UauConnectionCheck
+}
+
 export interface AppConfigDTO {
   dataSource: 'memory' | 'supabase'
   /** mock = catálogo de exemplo; real = API UAU */

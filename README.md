@@ -161,6 +161,13 @@ supabase/migrations/              esquema versionado
 
 ---
 
+## Integração com o UAU: diagnóstico
+
+- **Tela Integração** (gestão): testa, a partir do servidor publicado, um login novo e uma busca pequena no UAU, com o tempo de cada passo e o motivo da falha (login recusado, tempo esgotado, servidor inacessível, possível bloqueio de IP, certificado). Não grava nada.
+- **Logs da Vercel** (Project → Logs): uma linha `[uau] <rota> → HTTP <status> em <ms> ms` por chamada; falhas aparecem como `[uau] … → falhou: <motivo>`. Nunca há corpo nem credenciais no log.
+- **`/api/health`** (público): modo atual e quais variáveis existem (só sim/não).
+- Variáveis na Vercel: cole o valor exato, **sem aspas em volta**. A senha do UAU é usada como está (só espaços nas pontas são removidos), porque pode conter aspas.
+
 ## Segurança
 
 - **Credenciais só no servidor** (`.env.local` / variáveis da Vercel). O navegador nunca fala com o UAU nem recebe token, login ou senha.

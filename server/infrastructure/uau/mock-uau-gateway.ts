@@ -5,7 +5,7 @@
 import { fromUauRow, type CatalogItem } from '../../../shared/domain/insumo/catalog'
 import { normalizeCode } from '../../../shared/domain/insumo/code'
 import { UAU_CONFIRMATION, type UauConfirmBody, type UauInsertBody } from '../../../shared/domain/insumo/uau-payload'
-import type { CatalogSnapshot, UauGateway, UauWriteResult } from '../../application/ports'
+import type { CatalogSnapshot, UauConnectionCheck, UauGateway, UauWriteResult } from '../../application/ports'
 import { SAMPLE_CATALOG } from './sample-catalog'
 
 export class MockUauGateway implements UauGateway {
@@ -19,6 +19,14 @@ export class MockUauGateway implements UauGateway {
 
   constructor(rows: Record<string, unknown>[] = SAMPLE_CATALOG) {
     for (const row of rows) this.rows.set(normalizeCode(row.Cod_ins), { ...row })
+  }
+
+  async checkConnection(): Promise<UauConnectionCheck> {
+    return {
+      host: null,
+      steps: [{ name: 'UAU simulado', ok: true, ms: 0, detail: `Catálogo de exemplo com ${this.rows.size} insumos (UAU_MODE=mock). Nada sai deste servidor.` }],
+      catalog: { cached: true, items: this.rows.size, loadedAt: this.loadedAt },
+    }
   }
 
   async loadCatalog(): Promise<CatalogSnapshot> {
