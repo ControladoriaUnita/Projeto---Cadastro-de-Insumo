@@ -144,6 +144,8 @@ supabase/migrations/              esquema versionado
 
 **Para crescer sem bagunça:** regra de negócio nova vai para `shared/domain` (com teste); operação nova é um caso de uso em `server/application/use-cases` + uma linha em `server/http/router.ts`; tela nova é uma pasta em `src/features` + rota em `App.tsx` + item em `src/app/navigation.ts`.
 
+> **Não adicione `"type": "module"` ao `package.json`.** A Vercel compila a API arquivo por arquivo; como módulo ES, os imports sem extensão (`'../server/http/router'`) não são encontrados e toda rota `/api/*` falha com `FUNCTION_INVOCATION_FAILED`. Arquivos que precisam de módulo ES usam `.mts`/`.mjs`.
+
 ### Rotas da API
 
 | Método | Rota | Quem |
