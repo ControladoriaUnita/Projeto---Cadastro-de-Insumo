@@ -2,7 +2,7 @@
  * Fluxo completo pela API em modo memória + UAU simulado (mesmo router das Vercel Functions).
  */
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { ApproveResultDTO, CatalogPageDTO, InsumoDraft, RequestDTO, RequestDetailDTO } from '../../shared/contracts'
+import type { ApproveResultDTO, CatalogPageDTO, CreateRequestBatchResultDTO, InsumoDraft, RequestDTO, RequestDetailDTO } from '../../shared/contracts'
 import { getMemoryStore } from '../infrastructure/memory/memory-repositories'
 import { DEMO_USERS } from '../infrastructure/memory/seed'
 import { setUauGatewayForTests } from '../infrastructure/uau'
@@ -128,6 +128,39 @@ describe('permissões por papel', () => {
   it('valida a entrada com Zod', async () => {
     const r = await call(OBRA, 'POST', '/requests', { ...newRequest, description: 'x' })
     expect(r.status).toBe(422)
+  })
+})
+
+describe('vários insumos de uma vez', () => {
+  const items = [
+    newRequest,
+    { ...newRequest, kind: 'servico', description: 'Locação de andaime fachadeiro', unit: 'mês', urgency: 'urgente' },
+    { ...newRequest, description: 'Argamassa AC-III cinza 20kg', unit: 'sc' },
+  ]
+
+  it('cria uma solicitação por insumo, na ordem, e todas entram na fila do analista', async () => {
+    const r = await call<CreateRequestBatchResultDTO>(OBRA, 'POST', '/requests/batch', { items })
+    expect(r.status).toBe(201)
+    expect(r.data.requests.map((x) => x.description)).toEqual(items.map((i) => i.description))
+    expect(r.data.requests.every((x) => x.status === 'solicitado' && x.requester.id === OBRA)).toBe(true)
+    const numbers = r.data.requests.map((x) => x.number)
+    expect(new Set(numbers).size).toBe(3)
+    const queue = await call<RequestDTO[]>(ANALISTA, 'GET', '/requests?scope=drafting')
+    expect(queue.data.filter((x) => numbers.includes(x.number))).toHaveLength(3)
+    // Urgente primeiro na fila
+    expect(queue.data[0]!.urgency).toBe('urgente')
+  })
+
+  it('um item inválido recusa o lote inteiro, sem gravar nenhum', async () => {
+    const before = (await call<RequestDTO[]>(GESTOR, 'GET', '/requests?scope=all')).data.length
+    const r = await call(OBRA, 'POST', '/requests/batch', { items: [newRequest, { ...newRequest, unit: '' }] })
+    expect(r.status).toBe(422)
+    expect((await call<RequestDTO[]>(GESTOR, 'GET', '/requests?scope=all')).data).toHaveLength(before)
+  })
+
+  it('exige ao menos um item e limita o tamanho do lote', async () => {
+    expect((await call(OBRA, 'POST', '/requests/batch', { items: [] })).status).toBe(422)
+    expect((await call(OBRA, 'POST', '/requests/batch', { items: Array.from({ length: 101 }, () => newRequest) })).status).toBe(422)
   })
 })
 

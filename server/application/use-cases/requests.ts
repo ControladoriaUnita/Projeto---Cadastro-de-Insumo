@@ -4,7 +4,7 @@
  *
  * Regra de ouro: nada é gravado no UAU antes de `approve`.
  */
-import type { ApproveResultDTO, CreateRequestInput, RequestDTO, RequestDetailDTO, RequestScope } from '../../../shared/contracts'
+import type { ApproveResultDTO, CreateRequestBatchResultDTO, CreateRequestInput, RequestDTO, RequestDetailDTO, RequestScope } from '../../../shared/contracts'
 import { normalizeCode, nextFreeCode } from '../../../shared/domain/insumo/code'
 import { EMPTY_DRAFT, normalizeDraft, type DraftField, type InsumoDraft } from '../../../shared/domain/insumo/draft'
 import { buildConfirmBody, buildInsertBody } from '../../../shared/domain/insumo/uau-payload'
@@ -156,8 +156,7 @@ const detail = (deps: UseCaseDeps, r: RequestRecord) => getRequest(deps, r.id)
 
 // ----------------------------------------------------------------------------- obra
 
-export async function createRequest(deps: UseCaseDeps, input: CreateRequestInput): Promise<RequestDetailDTO> {
-  requirePermission(deps.ctx, P.requestCreate)
+async function insertRequest(deps: UseCaseDeps, input: CreateRequestInput, details: unknown = null): Promise<RequestRecord> {
   const { actor } = deps.ctx
   const r = await deps.repos.requests.create({
     status: 'solicitado',
@@ -180,8 +179,23 @@ export async function createRequest(deps: UseCaseDeps, input: CreateRequestInput
     confirmedAt: null,
     lastComment: null,
   })
-  await record(deps, r, 'created', null)
-  return detail(deps, r)
+  await record(deps, r, 'created', null, null, details)
+  return r
+}
+
+export async function createRequest(deps: UseCaseDeps, input: CreateRequestInput): Promise<RequestDetailDTO> {
+  requirePermission(deps.ctx, P.requestCreate)
+  return detail(deps, await insertRequest(deps, input))
+}
+
+/** Vários insumos de uma vez: uma solicitação por insumo, na ordem enviada (já validados pelo schema). */
+export async function createRequests(deps: UseCaseDeps, items: CreateRequestInput[]): Promise<CreateRequestBatchResultDTO> {
+  requirePermission(deps.ctx, P.requestCreate)
+  const created: RequestRecord[] = []
+  for (const [i, input] of items.entries()) {
+    created.push(await insertRequest(deps, input, items.length > 1 ? { batch: { position: i + 1, size: items.length } } : null))
+  }
+  return { requests: created.map((r) => toDTO(r, deps.ctx.actor)) }
 }
 
 export async function cancelRequest(deps: UseCaseDeps, id: string, comment: string | null): Promise<RequestDetailDTO> {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { FINAL_STATUSES } from '@shared/domain/request/workflow'
 import { PERMISSIONS } from '@shared/domain/roles'
@@ -19,6 +19,7 @@ export function RequestsPage() {
   const seesAll = can(PERMISSIONS.requestReadAll)
   const requests = useRequests(seesAll ? 'all' : 'mine')
   const [view, setView] = useState<View>('open')
+  const createdCount = (useLocation().state as { createdCount?: number } | null)?.createdCount
 
   const groups = useMemo(() => {
     const all = requests.data ?? []
@@ -45,6 +46,12 @@ export function RequestsPage() {
           )
         }
       />
+
+      {!!createdCount && (
+        <Alert tone="success" className="mb-4" title={`${createdCount} solicitações enviadas`}>
+          Cada insumo virou uma solicitação e o analista de cadastro já pode ver todas. Acompanhe por esta tela.
+        </Alert>
+      )}
 
       <KpiStrip
         className="mb-4"

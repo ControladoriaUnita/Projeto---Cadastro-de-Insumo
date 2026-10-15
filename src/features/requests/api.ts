@@ -4,6 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   ApproveResultDTO,
+  CreateRequestBatchResultDTO,
   CreateRequestInput,
   DraftPreviewDTO,
   InsumoDraft,
@@ -41,6 +42,11 @@ function useWrite<TInput, TResult>(fn: (input: TInput) => Promise<TResult>) {
 
 export function useCreateRequest() {
   return useWrite((input: CreateRequestInput) => api<RequestDetailDTO>('/requests', { method: 'POST', body: input }))
+}
+
+/** Vários insumos de uma vez: uma solicitação por insumo. */
+export function useCreateRequests() {
+  return useWrite((items: CreateRequestInput[]) => api<CreateRequestBatchResultDTO>('/requests/batch', { method: 'POST', body: { items } }))
 }
 
 /** Ações simples do fluxo (POST /requests/:id/<ação>). */
