@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { CheckCircle2, ClipboardCheck, RotateCcw, Search, Undo2, XCircle } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ClipboardCheck, RotateCcw, Search, Undo2, XCircle } from 'lucide-react'
 import type { ApproveResultDTO, RequestDetailDTO } from '@shared/contracts'
 import { mainWords } from '@shared/domain/insumo/text'
 import { PATHS } from '@/app/navigation'
@@ -13,7 +13,7 @@ import { CatalogBrowser } from '@/features/catalog/CatalogBrowser'
 import { DraftWorkspace } from '@/features/insumo-form/DraftWorkspace'
 import { PayloadPreview } from '@/features/insumo-form/PayloadPreview'
 import { useDraftEditor } from '@/features/insumo-form/useDraftEditor'
-import { useApprove, useRequest, useRequestAction, useResume } from '@/features/requests/api'
+import { useApprove, useRequest, useRequestAction, useRequests, useResume } from '@/features/requests/api'
 import { CommentDialog } from '@/features/requests/components/CommentDialog'
 import { RequestTimeline } from '@/features/requests/components/RequestTimeline'
 import { StatusBadge, UrgencyBadge } from '@/features/requests/components/StatusBadge'
@@ -58,6 +58,31 @@ type ApprovalTab = 'review' | 'catalog'
 
 const searchTerms = (description: string) => mainWords(description, 2).join(' ')
 
+/** Posição no envio em lote (gravada no histórico ao criar), ou null se foi pedido sozinho. */
+function batchInfo(request: RequestDetailDTO): { position: number; size: number } | null {
+  const details = request.events.find((e) => e.type === 'created')?.details as { batch?: { position: number; size: number } } | null
+  return details?.batch ?? null
+}
+
+/** Depois de aprovar: leva ao próximo insumo da fila, para a gestão seguir um por vez. */
+function NextInQueue({ currentId }: { currentId: string }) {
+  const queue = useRequests('approval')
+  const waiting = (queue.data ?? []).filter((r) => r.status === 'aguardando_aprovacao' && r.id !== currentId)
+  const next = waiting[0]
+  if (queue.isLoading) return null
+  return next ? (
+    <Link to={PATHS.approve(next.id)}>
+      <Button size="sm" variant="primary" icon={<ArrowRight className="size-4" />}>
+        Próximo insumo ({waiting.length} aguardando)
+      </Button>
+    </Link>
+  ) : (
+    <Link to={PATHS.approval}>
+      <Button size="sm">Fila vazia · voltar</Button>
+    </Link>
+  )
+}
+
 function ApprovalWorkspace({ request }: { request: RequestDetailDTO }) {
   const { config } = useAuth()
   const navigate = useNavigate()
@@ -68,6 +93,7 @@ function ApprovalWorkspace({ request }: { request: RequestDetailDTO }) {
   const [dialog, setDialog] = useState<OpenDialog>(null)
   const [result, setResult] = useState<ApproveResultDTO | null>(null)
   const [tab, setTab] = useState<ApprovalTab>('review')
+  const batch = batchInfo(request)
 
   const can = (a: RequestDetailDTO['actions'][number]) => request.actions.includes(a)
   const writeEnabled = config?.uauWriteEnabled ?? false
@@ -147,8 +173,18 @@ function ApprovalWorkspace({ request }: { request: RequestDetailDTO }) {
   return (
     <>
       {result && (
-        <Alert tone={result.warning ? 'warning' : 'success'} className="mb-4" title={result.warning ? 'Aprovação incompleta' : 'Insumo gravado e confirmado no UAU'}>
+        <Alert
+          tone={result.warning ? 'warning' : 'success'}
+          className="mb-4"
+          title={result.warning ? 'Aprovação incompleta' : 'Insumo gravado e confirmado no UAU'}
+          action={result.warning ? undefined : <NextInQueue currentId={request.id} />}
+        >
           {result.warning ?? `${result.request.uauCode} · ${result.request.draft?.descricao}`}
+        </Alert>
+      )}
+      {batch && can('approve') && (
+        <Alert tone="info" className="mb-4" title={`Insumo ${batch.position} de ${batch.size} enviados juntos pela obra`}>
+          A aprovação é individual: só este insumo será gravado no UAU. Os outros do mesmo envio continuam na fila, cada um com a sua revisão.
         </Alert>
       )}
       <div className="mb-4">

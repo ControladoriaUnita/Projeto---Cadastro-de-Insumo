@@ -17,7 +17,7 @@ export function ApprovalQueuePage() {
       <PageHeader
         eyebrow="Gestão"
         title="Aprovação de insumos"
-        description="Revise o cadastro, ajuste se precisar e aprove: o insumo é inserido no UAU e tem a situação confirmada."
+        description="Cada insumo é aprovado individualmente: abra, revise, ajuste se precisar e aprove. Só então ele é inserido no UAU e tem a situação confirmada, um de cada vez."
       />
       <KpiStrip
         className="mb-4"
@@ -41,7 +41,7 @@ export function ApprovalQueuePage() {
             </Card>
           )}
           <Card>
-            <CardHeader title="Aguardando aprovação" />
+            <CardHeader title="Aguardando aprovação" description="Urgentes primeiro, depois os mais antigos. Insumos enviados juntos pela obra também são aprovados um a um." />
             {waiting.length ? (
               <RequestsTable rows={waiting} columns={['number', 'description', 'work', 'analyst', 'status', 'updated']} linkTo={(r) => PATHS.approve(r.id)} />
             ) : (

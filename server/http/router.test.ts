@@ -233,6 +233,36 @@ describe('fluxo obra → analista → gestor → UAU', () => {
     expect(after.data.status).toBe('aguardando_aprovacao')
   })
 
+  it('um insumo de cada vez: outra gravação em andamento bloqueia a aprovação', async () => {
+    const ready = async () => {
+      const d = await createAndDraft()
+      await call(ANALISTA, 'PUT', `/requests/${d.id}/draft`, { draft: completeDraft(d.draft!) })
+      await call(ANALISTA, 'POST', `/requests/${d.id}/submit`)
+      return d
+    }
+    const a = await ready()
+    const b = await ready()
+    expect(b.draft?.codigo).not.toBe(a.draft?.codigo)
+
+    // Simula "a" no meio da gravação no UAU
+    const store = getMemoryStore()
+    const busy = store.requests.get(a.id)!
+    store.requests.set(a.id, { ...busy, status: 'em_insercao', updatedAt: new Date().toISOString() })
+
+    const blocked = await call<{ error: { code: string; message: string } }>(GESTOR, 'POST', `/requests/${b.id}/approve`, {})
+    expect(blocked.status).toBe(409)
+    expect(blocked.data.error.code).toBe('UAU_BUSY')
+    expect(blocked.data.error.message).toContain(`#${String(busy.number).padStart(4, '0')}`)
+    expect(await uau.findByCode(b.draft!.codigo)).toBeNull()
+    expect((await call<RequestDetailDTO>(GESTOR, 'GET', `/requests/${b.id}`)).data.status).toBe('aguardando_aprovacao')
+
+    // Gravação parada há mais de 5 minutos é tratada como interrompida e não trava a fila
+    store.requests.set(a.id, { ...busy, status: 'em_insercao', updatedAt: new Date(Date.now() - 6 * 60_000).toISOString() })
+    const ok = await call<ApproveResultDTO>(GESTOR, 'POST', `/requests/${b.id}/approve`, {})
+    expect(ok.status).toBe(200)
+    expect(ok.data.request.status).toBe('aprovado')
+  })
+
   it('devolução exige motivo e volta ao analista', async () => {
     const d = await createAndDraft()
     await call(ANALISTA, 'PUT', `/requests/${d.id}/draft`, { draft: completeDraft(d.draft!) })
