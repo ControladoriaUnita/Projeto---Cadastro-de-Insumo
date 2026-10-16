@@ -78,7 +78,7 @@ export function RequestFields({ form, errors, set }: Props) {
 }
 
 /** Obras ativas no UAU; se o UAU não responder, libera digitar o nome da obra. */
-function WorkSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function WorkSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const works = useWorks()
   if (works.isError) {
     return <Input value={value} onChange={(e) => onChange(e.target.value)} maxLength={160} placeholder="Não foi possível carregar as obras do UAU: digite a obra" />

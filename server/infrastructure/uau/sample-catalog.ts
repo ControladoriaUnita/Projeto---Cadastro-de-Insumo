@@ -75,8 +75,9 @@ export const SAMPLE_CATALOG: Row[] = [
 
 /** Obras de exemplo, no formato cru de Obras/ObterObrasAtivas. */
 export const SAMPLE_WORKS: Row[] = [
-  { Cod_obr: 'PZ212', Empresa_obr: 1, Descr_obr: 'Pazza Ipanema 212', Status_obr: 0 },
-  { Cod_obr: 'JOY01', Empresa_obr: 1, Descr_obr: 'Joy+ Evans', Status_obr: 0 },
+  { Cod_obr: 'P212C', Empresa_obr: 1, Descr_obr: 'Pazza Ipanema 212', Status_obr: 0 },
+  { Cod_obr: 'J001C', Empresa_obr: 1, Descr_obr: 'Joy+ Evans', Status_obr: 0 },
   { Cod_obr: 'P007C', Empresa_obr: 1, Descr_obr: 'Metrocasa - Dom Bosco - Construção', Status_obr: 0 },
+  { Cod_obr: 'P007A', Empresa_obr: 1, Descr_obr: 'Metrocasa - Dom Bosco - Assistência Técnica', Status_obr: 0 },
   { Cod_obr: 'DHO', Empresa_obr: 1, Descr_obr: 'Desenvolvimento Humano Organizacional', Status_obr: 0 },
 ]

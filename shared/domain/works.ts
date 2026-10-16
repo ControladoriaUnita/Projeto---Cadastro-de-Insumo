@@ -15,6 +15,12 @@ export function fromUauWorkRow(row: Record<string, unknown>): WorkDTO {
   return { codigo, empresa: Number.isFinite(empresa) && text(row.Empresa_obr) !== '' ? empresa : null, descricao, label: workLabel(codigo, descricao) }
 }
 
+/**
+ * Só obras de centro de custo "C" (construção): o código do UAU termina com a letra do centro
+ * de custo, ex.: P007C (construção) e P007A (assistência técnica).
+ */
+export const isConstructionWork = (w: WorkDTO) => w.codigo.endsWith('C')
+
 /** Sem repetidos (mesmo texto) e em ordem alfabética. */
 export function sortWorks(works: WorkDTO[]): WorkDTO[] {
   const unique = new Map(works.filter((w) => w.codigo).map((w) => [w.label, w]))

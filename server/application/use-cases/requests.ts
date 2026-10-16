@@ -4,8 +4,9 @@
  *
  * Regra de ouro: nada é gravado no UAU antes de `approve`.
  */
-import type { ApproveResultDTO, CreateRequestInput, RequestDTO, RequestDetailDTO, RequestScope } from '../../../shared/contracts'
+import type { ApproveResultDTO, CreateRequestBatchResultDTO, CreateRequestInput, RequestDTO, RequestDetailDTO, RequestScope } from '../../../shared/contracts'
 import { GUEST_OBRA_ID } from '../../../shared/domain/access'
+import { formatRequestNumber } from '../../../shared/format'
 import { normalizeCode, nextFreeCode } from '../../../shared/domain/insumo/code'
 import { EMPTY_DRAFT, normalizeDraft, type DraftField, type InsumoDraft } from '../../../shared/domain/insumo/draft'
 import { buildConfirmBody, buildInsertBody } from '../../../shared/domain/insumo/uau-payload'
@@ -175,8 +176,7 @@ const requestFields = (input: CreateRequestInput) => ({
   requesterName: input.requesterName,
 })
 
-export async function createRequest(deps: UseCaseDeps, input: CreateRequestInput): Promise<RequestDetailDTO> {
-  requirePermission(deps.ctx, P.requestCreate)
+async function insertRequest(deps: UseCaseDeps, input: CreateRequestInput, details: unknown = null): Promise<RequestRecord> {
   const { actor } = deps.ctx
   const r = await deps.repos.requests.create({
     status: 'solicitado',
@@ -192,8 +192,23 @@ export async function createRequest(deps: UseCaseDeps, input: CreateRequestInput
     confirmedAt: null,
     lastComment: null,
   })
-  await record(asRequester(deps, input.requesterName), r, 'created', null)
-  return detail(deps, r)
+  await record(asRequester(deps, input.requesterName), r, 'created', null, null, details)
+  return r
+}
+
+export async function createRequest(deps: UseCaseDeps, input: CreateRequestInput): Promise<RequestDetailDTO> {
+  requirePermission(deps.ctx, P.requestCreate)
+  return detail(deps, await insertRequest(deps, input))
+}
+
+/** Vários insumos de uma vez: uma solicitação por insumo, na ordem enviada (já validados pelo schema). */
+export async function createRequests(deps: UseCaseDeps, items: CreateRequestInput[]): Promise<CreateRequestBatchResultDTO> {
+  requirePermission(deps.ctx, P.requestCreate)
+  const created: RequestRecord[] = []
+  for (const [i, input] of items.entries()) {
+    created.push(await insertRequest(deps, input, items.length > 1 ? { batch: { position: i + 1, size: items.length } } : null))
+  }
+  return { requests: created.map((r) => toDTO(r, deps.ctx.actor)) }
 }
 
 /** Obra corrige o que o analista pediu e reenvia; se o cadastro já tinha começado, volta para ele. */
@@ -280,6 +295,25 @@ export async function returnToAnalyst(deps: UseCaseDeps, id: string, comment: st
   return detail(deps, await transition(deps, r, 'return', 'em_cadastro', { comment, patch: { lastComment: comment } }))
 }
 
+/** Uma gravação em "em_insercao" há mais tempo que isso foi interrompida (vai para "Retomar") e não trava as outras. */
+export const UAU_WRITE_LOCK_MS = 5 * 60 * 1000
+
+/**
+ * Um insumo de cada vez no UAU: enquanto outro estiver sendo gravado, nenhuma outra aprovação começa.
+ * Assim cada inserção relê o cadastro já com a anterior concluída.
+ */
+async function assertNoOtherWrite(deps: UseCaseDeps, id: string) {
+  const since = deps.ctx.now().getTime() - UAU_WRITE_LOCK_MS
+  const busy = (await deps.repos.requests.list({ statuses: ['em_insercao'] })).find((x) => x.id !== id && Date.parse(x.updatedAt) > since)
+  if (busy) {
+    throw new AppError(
+      'UAU_BUSY',
+      `O insumo da solicitação ${formatRequestNumber(busy.number)} está sendo gravado no UAU agora. Os insumos são aprovados um de cada vez: aguarde terminar e tente de novo.`,
+      409,
+    )
+  }
+}
+
 function assertWriteEnabled(deps: UseCaseDeps) {
   if (!deps.uau.writeEnabled) {
     throw new AppError(
@@ -313,6 +347,8 @@ export async function approveRequest(deps: UseCaseDeps, id: string, adjustments?
   const draft = await assertDraftValid(deps, r, r.draft)
 
   const { actor } = deps.ctx
+  // Conferido logo antes de travar: a releitura do UAU acima pode levar mais de um minuto
+  await assertNoOtherWrite(deps, r.id)
   const locked = await transition(deps, r, 'approve', 'em_insercao', { patch: { approverId: actor.id, approverName: actor.fullName } })
   return runInsertion(deps, locked, draft)
 }
@@ -322,6 +358,7 @@ export async function resumeApproval(deps: UseCaseDeps, id: string): Promise<App
   const r = await load(deps, id)
   assertCanPerform('resume', r, deps.ctx.actor)
   assertWriteEnabled(deps)
+  await assertNoOtherWrite(deps, r.id)
   const draft = normalizeDraft(r.draft ?? {})
 
   if (r.status === 'inserido_nao_confirmado') return runConfirmation(deps, r)

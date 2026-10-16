@@ -49,6 +49,9 @@ export function ApproveDialog({ open, draft, loading, error, onConfirm, onCancel
             A situação muda para <strong>confirmado</strong>, liberando o uso.
           </li>
         </ol>
+        <p>
+          Só <strong>este insumo</strong> é gravado. Os demais da fila seguem aguardando, um de cada vez.
+        </p>
         <Alert tone="warning">O UAU não permite excluir insumos. Um cadastro errado só pode ser inativado depois.</Alert>
         <Field label={`Digite ${draft.codigo} para confirmar`}>
           <Input value={typed} onChange={(e) => setTyped(e.target.value)} className="tabular uppercase" autoFocus />

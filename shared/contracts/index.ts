@@ -8,6 +8,7 @@ import type { DraftValidation, InsumoDraft } from '../domain/insumo/draft'
 import type { SimilarItem } from '../domain/insumo/similarity'
 import type { UauConfirmBody, UauInsertBody } from '../domain/insumo/uau-payload'
 import { REQUESTABLE_KINDS, type RequestKind, type Urgency } from '../domain/request/kinds'
+import { MAX_BATCH_ITEMS } from '../domain/request/spreadsheet'
 import type { RequestAction, RequestEventType, RequestStatus } from '../domain/request/workflow'
 import type { RoleKey } from '../domain/roles'
 
@@ -167,6 +168,19 @@ export const createRequestSchema = z.object({
   justification: text(2000).min(5, 'Explique onde o insumo será usado.'),
 })
 export type CreateRequestInput = z.infer<typeof createRequestSchema>
+
+/** Vários insumos de uma vez (manual ou planilha): cada um vira uma solicitação. */
+export const createRequestBatchSchema = z.object({
+  items: z
+    .array(createRequestSchema)
+    .min(1, 'Adicione pelo menos um insumo.')
+    .max(MAX_BATCH_ITEMS, `Envie no máximo ${MAX_BATCH_ITEMS} insumos de uma vez.`),
+})
+export type CreateRequestBatchInput = z.infer<typeof createRequestBatchSchema>
+
+export interface CreateRequestBatchResultDTO {
+  requests: RequestDTO[]
+}
 
 const optionalInt = (values: number[]) =>
   z

@@ -66,12 +66,23 @@ A regra de quem pode o quê está em **um lugar só**: [`shared/domain/roles.ts`
 
 Devolver e recusar exigem motivo, que aparece para a obra. Cada passo fica no **histórico** (append-only), incluindo o JSON enviado e a resposta do UAU.
 
+### Vários insumos de uma vez
+
+Na tela **Solicitar insumo**, a obra informa a obra uma vez e adiciona quantos insumos precisar (até 100 por envio):
+
+- **Adicionar insumo**: novo bloco em branco, já com o tipo e a urgência do anterior.
+- **Importar planilha**: explica o preenchimento e oferece **Baixar modelo** (`.xlsx` com as colunas, listas de Tipo e Urgência e uma aba de instruções) e **Selecionar arquivo**. As linhas entram na tela para conferência; campos faltando e tipo/urgência não reconhecidos ficam marcados e bloqueiam o envio até serem corrigidos.
+
+Cada insumo vira **uma solicitação** (`POST /api/requests/batch`), e o fluxo de cadastro e aprovação continua item a item. Se algum item for inválido, o lote inteiro é recusado e nada é gravado. A leitura da planilha fica em [`shared/domain/request/spreadsheet.ts`](shared/domain/request/spreadsheet.ts) (colunas achadas pelo nome, em qualquer ordem). O ExcelJS só é baixado quando alguém abre a importação.
+
 ### Aprovação no UAU (dois passos)
 
 1. `InsumosGeral/InserirInsumosGeral` cria o insumo **ativo e não confirmado** (`status: 0`, `confirmado: 0`).
 2. `InsumosGeral/AtualizarInsumosGeral` muda a **situação para confirmado** (`confirmado: 1`).
 
 Antes de gravar, o servidor relê o cadastro inteiro do UAU (sem cache), revalida e confere que o código continua livre. Isso leva de 10 s a mais de 1 minuto, conforme a carga do UAU. A solicitação é travada em `em_insercao` para duas pessoas não aprovarem ao mesmo tempo. Se a inserção falhar, volta para a fila; se a confirmação falhar, fica em `inserido_nao_confirmado` e **Retomar** termina sem inserir de novo.
+
+**Um insumo de cada vez.** A gestão aprova cada insumo individualmente, na tela dele, digitando o código para confirmar. Não existe aprovação em lote, inclusive para insumos que a obra enviou juntos (a tela avisa "insumo 2 de 5 enviados juntos"). O servidor também só deixa uma gravação no UAU por vez: enquanto um insumo estiver em `em_insercao`, outra aprovação ou retomada recebe `409 UAU_BUSY`. Uma gravação parada há mais de 5 minutos é tratada como interrompida (vai para **Retomar**) e não trava a fila. Depois de aprovar, **Próximo insumo** abre o seguinte da fila.
 
 Na tela de aprovação, a aba **Insumos do UAU** mostra o cadastro inteiro (busca, filtros, detalhe), já filtrado pelas palavras principais da descrição, para o gestor conferir repetidos e parecidos antes de aprovar.
 

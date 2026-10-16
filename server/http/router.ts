@@ -8,6 +8,7 @@ import {
   approveSchema,
   catalogQuerySchema,
   commentSchema,
+  createRequestBatchSchema,
   createRequestSchema,
   listRequestsQuerySchema,
   saveDraftSchema,
@@ -66,6 +67,7 @@ route('GET', '/config', async (): Promise<AppConfigDTO> => {
 // ----------------------------------------------------------------------------- solicitações
 route('GET', '/requests', async ({ deps, url }) => requests.listRequests(deps, parse(listRequestsQuerySchema, query(url)).scope))
 route('POST', '/requests', async ({ deps, body }) => requests.createRequest(deps, parse(createRequestSchema, await body())), 201)
+route('POST', '/requests/batch', async ({ deps, body }) => requests.createRequests(deps, parse(createRequestBatchSchema, await body()).items), 201)
 route('GET', '/requests/:id', async ({ deps, params }) => requests.getRequest(deps, parse(uuidParam, params.id)))
 route('POST', '/requests/:id/cancel', async ({ deps, params, body }) =>
   requests.cancelRequest(deps, parse(uuidParam, params.id), parse(optionalComment, await body()).comment ?? null))

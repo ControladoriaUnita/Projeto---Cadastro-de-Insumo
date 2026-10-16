@@ -2,7 +2,7 @@
  * Fluxo completo pela API em modo memória + UAU simulado (mesmo router das Vercel Functions).
  */
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { ApproveResultDTO, CatalogPageDTO, InsumoDraft, RequestDTO, RequestDetailDTO } from '../../shared/contracts'
+import type { ApproveResultDTO, CatalogPageDTO, CreateRequestBatchResultDTO, InsumoDraft, RequestDTO, RequestDetailDTO } from '../../shared/contracts'
 import { getMemoryStore } from '../infrastructure/memory/memory-repositories'
 import { DEMO_USERS } from '../infrastructure/memory/seed'
 import { setUauGatewayForTests } from '../infrastructure/uau'
@@ -45,7 +45,7 @@ const newRequest = {
   requesterName: 'Carla Mendes',
   kind: 'material',
   urgency: 'normal',
-  workName: 'PZ212 - Pazza Ipanema 212',
+  workName: 'P212C - Pazza Ipanema 212',
   description: 'Rejunte epóxi cinza platina 1kg',
   unit: 'kg',
   specification: '',
@@ -138,10 +138,43 @@ describe('permissões por papel', () => {
     expect(r.data).toMatchObject({ kind: 'servico', requester: { name: 'João da Obra' } })
   })
 
-  it('lista as obras do UAU para o campo e o filtro', async () => {
-    const r = await call<{ label: string }[]>(OBRA, 'GET', '/works')
+  it('lista só as obras de centro de custo "C" do UAU para o campo e o filtro', async () => {
+    const r = await call<{ codigo: string }[]>(OBRA, 'GET', '/works')
     expect(r.status).toBe(200)
-    expect(r.data.map((w) => w.label)).toContain('PZ212 - Pazza Ipanema 212')
+    expect(r.data.map((w) => w.codigo)).toEqual(['J001C', 'P007C', 'P212C'])
+  })
+})
+
+describe('vários insumos de uma vez', () => {
+  const items = [
+    newRequest,
+    { ...newRequest, kind: 'servico', description: 'Locação de andaime fachadeiro', unit: 'mês', urgency: 'urgente' },
+    { ...newRequest, description: 'Argamassa AC-III cinza 20kg', unit: 'sc' },
+  ]
+
+  it('cria uma solicitação por insumo, na ordem, e todas entram na fila do analista', async () => {
+    const r = await call<CreateRequestBatchResultDTO>(OBRA, 'POST', '/requests/batch', { items })
+    expect(r.status).toBe(201)
+    expect(r.data.requests.map((x) => x.description)).toEqual(items.map((i) => i.description))
+    expect(r.data.requests.every((x) => x.status === 'solicitado' && x.requester.id === OBRA)).toBe(true)
+    const numbers = r.data.requests.map((x) => x.number)
+    expect(new Set(numbers).size).toBe(3)
+    const queue = await call<RequestDTO[]>(ANALISTA, 'GET', '/requests?scope=drafting')
+    expect(queue.data.filter((x) => numbers.includes(x.number))).toHaveLength(3)
+    // Urgente primeiro na fila
+    expect(queue.data[0]!.urgency).toBe('urgente')
+  })
+
+  it('um item inválido recusa o lote inteiro, sem gravar nenhum', async () => {
+    const before = (await call<RequestDTO[]>(GESTOR, 'GET', '/requests?scope=all')).data.length
+    const r = await call(OBRA, 'POST', '/requests/batch', { items: [newRequest, { ...newRequest, unit: '' }] })
+    expect(r.status).toBe(422)
+    expect((await call<RequestDTO[]>(GESTOR, 'GET', '/requests?scope=all')).data).toHaveLength(before)
+  })
+
+  it('exige ao menos um item e limita o tamanho do lote', async () => {
+    expect((await call(OBRA, 'POST', '/requests/batch', { items: [] })).status).toBe(422)
+    expect((await call(OBRA, 'POST', '/requests/batch', { items: Array.from({ length: 101 }, () => newRequest) })).status).toBe(422)
   })
 })
 
@@ -212,6 +245,36 @@ describe('fluxo obra → analista → gestor → UAU', () => {
     expect(r.data.error.code).toBe('UAU_INSERT_FAILED')
     const after = await call<RequestDetailDTO>(GESTOR, 'GET', `/requests/${d.id}`)
     expect(after.data.status).toBe('aguardando_aprovacao')
+  })
+
+  it('um insumo de cada vez: outra gravação em andamento bloqueia a aprovação', async () => {
+    const ready = async () => {
+      const d = await createAndDraft()
+      await call(ANALISTA, 'PUT', `/requests/${d.id}/draft`, { draft: completeDraft(d.draft!) })
+      await call(ANALISTA, 'POST', `/requests/${d.id}/submit`)
+      return d
+    }
+    const a = await ready()
+    const b = await ready()
+    expect(b.draft?.codigo).not.toBe(a.draft?.codigo)
+
+    // Simula "a" no meio da gravação no UAU
+    const store = getMemoryStore()
+    const busy = store.requests.get(a.id)!
+    store.requests.set(a.id, { ...busy, status: 'em_insercao', updatedAt: new Date().toISOString() })
+
+    const blocked = await call<{ error: { code: string; message: string } }>(GESTOR, 'POST', `/requests/${b.id}/approve`, {})
+    expect(blocked.status).toBe(409)
+    expect(blocked.data.error.code).toBe('UAU_BUSY')
+    expect(blocked.data.error.message).toContain(`#${String(busy.number).padStart(4, '0')}`)
+    expect(await uau.findByCode(b.draft!.codigo)).toBeNull()
+    expect((await call<RequestDetailDTO>(GESTOR, 'GET', `/requests/${b.id}`)).data.status).toBe('aguardando_aprovacao')
+
+    // Gravação parada há mais de 5 minutos é tratada como interrompida e não trava a fila
+    store.requests.set(a.id, { ...busy, status: 'em_insercao', updatedAt: new Date(Date.now() - 6 * 60_000).toISOString() })
+    const ok = await call<ApproveResultDTO>(GESTOR, 'POST', `/requests/${b.id}/approve`, {})
+    expect(ok.status).toBe(200)
+    expect(ok.data.request.status).toBe('aprovado')
   })
 
   it('devolução exige motivo e volta ao analista', async () => {
