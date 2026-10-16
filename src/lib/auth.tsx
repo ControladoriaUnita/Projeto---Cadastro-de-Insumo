@@ -3,7 +3,8 @@
  *
  *  1. Lê /api/auth-config (público): o servidor diz se usa Supabase ou o modo demonstração.
  *  2. Supabase: login por e-mail e senha; o token vai em toda chamada à API, e o servidor
- *     valida o token e lê o papel em `profiles` (/api/me).
+ *     valida o token e lê o papel em `profiles` (/api/me). Sem login, o servidor responde
+ *     como obra (a obra não precisa de cadastro).
  *  3. Demonstração: sem login; o usuário vem do seletor "entrar como".
  */
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
@@ -22,6 +23,8 @@ interface AuthState {
   user: UserDTO | null
   config: AppConfigDTO | null
   demo: boolean
+  /** Obra sem login */
+  guest: boolean
   /** E-mail da sessão do Supabase (aparece mesmo sem perfil liberado) */
   sessionEmail: string | null
   /** Entrou pelo link de "esqueci minha senha" e precisa definir uma nova */
@@ -76,11 +79,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => data.subscription.unsubscribe()
   }, [supabase, qc])
 
-  const hasSession = demo || !!session
+  // Sem sessão o servidor responde como obra (sem login)
   const me = useQuery({
-    queryKey: ['me', demo ? demoUser : session?.user.id],
+    queryKey: ['me', demo ? demoUser : (session?.user.id ?? 'guest')],
     queryFn: () => api<{ user: UserDTO }>('/me'),
-    enabled: !!cfg && hasSession,
+    enabled: !!cfg && (demo || session !== undefined),
     retry: false,
   })
   const appConfig = useQuery({ queryKey: ['config'], queryFn: () => api<AppConfigDTO>('/config'), enabled: !!me.data, staleTime: Infinity })
@@ -94,8 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Token recusado pelo servidor (expirado/revogado): encerra a sessão e volta ao login
   const meError = me.error instanceof ApiError ? me.error : null
   useEffect(() => {
-    if (meError?.code === 'UNAUTHENTICATED' && !demo) void signOut()
-  }, [meError, demo, signOut])
+    if (meError?.code === 'UNAUTHENTICATED' && !demo && session) void signOut()
+  }, [meError, demo, session, signOut])
 
   const signIn = useCallback(async (email: string, password: string) => {
     const client = getSupabase()
@@ -135,10 +138,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     access = 'error'
     error = 'Não foi possível falar com o servidor. Tente recarregar a página.'
   } else if (!cfg || (!demo && session === undefined)) access = 'loading'
-  else if (!hasSession) access = 'signed-out'
   else if (user) access = 'ready'
   else if (meError?.code === 'PROFILE_INACTIVE') access = 'inactive'
-  else if (me.isError && meError?.code !== 'UNAUTHENTICATED') {
+  else if (meError?.code === 'UNAUTHENTICATED') access = 'signed-out'
+  else if (me.isError) {
     access = 'error'
     error = meError?.message ?? 'Não foi possível carregar seu perfil.'
   } else access = 'loading'
@@ -148,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     config: appConfig.data ?? null,
     demo,
+    guest: !!user?.guest,
     sessionEmail: session?.user.email ?? null,
     recovering,
     error,

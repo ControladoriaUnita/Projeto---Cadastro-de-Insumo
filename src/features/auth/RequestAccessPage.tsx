@@ -10,7 +10,8 @@ import { api, errorMessage } from '@/lib/api'
 import { AuthLayout } from './AuthLayout'
 
 type FormErrors = Partial<Record<keyof AccessRequestInput, string>>
-const ROLES = Object.keys(ROLE_LABELS) as RoleKey[]
+// A obra não precisa de cadastro: solicita insumos sem login
+const ROLES = ['analista', 'gestor'] as const satisfies readonly RoleKey[]
 
 /**
  * Quem não tem acesso pede aqui. Não cria conta: o pedido vai para a tabela access_requests
@@ -19,7 +20,7 @@ const ROLES = Object.keys(ROLE_LABELS) as RoleKey[]
 export function RequestAccessPage() {
   const config = useQuery({ queryKey: ['auth-config'], queryFn: () => api<AuthConfigDTO>('/auth-config'), staleTime: Infinity })
   const domains = config.data?.corporateDomains ?? []
-  const [form, setForm] = useState<AccessRequestInput>({ fullName: '', email: '', requestedRole: 'obra', workName: '', message: '', website: '' })
+  const [form, setForm] = useState<AccessRequestInput>({ fullName: '', email: '', requestedRole: 'analista', workName: '', message: '', website: '' })
   const [errors, setErrors] = useState<FormErrors>({})
   const send = useMutation({ mutationFn: (input: AccessRequestInput) => api<{ ok: true }>('/access-requests', { method: 'POST', body: input }) })
 
@@ -67,7 +68,7 @@ export function RequestAccessPage() {
           <Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} autoComplete="email" maxLength={160} />
         </Field>
         <Field label="Perfil" required hint={ROLE_DESCRIPTIONS[form.requestedRole]}>
-          <Select value={form.requestedRole} onChange={(e) => set('requestedRole', e.target.value as RoleKey)}>
+          <Select value={form.requestedRole} onChange={(e) => set('requestedRole', e.target.value as AccessRequestInput['requestedRole'])}>
             {ROLES.map((r) => (
               <option key={r} value={r}>
                 {ROLE_LABELS[r]}
@@ -75,11 +76,6 @@ export function RequestAccessPage() {
             ))}
           </Select>
         </Field>
-        {form.requestedRole === 'obra' && (
-          <Field label="Obra" required error={errors.workName}>
-            <Input value={form.workName} onChange={(e) => set('workName', e.target.value)} maxLength={120} placeholder="Ex.: Pazza Ipanema 212" />
-          </Field>
-        )}
         <Field label="Mensagem para a gestão" hint="Opcional.">
           <Textarea value={form.message} onChange={(e) => set('message', e.target.value)} maxLength={1000} />
         </Field>

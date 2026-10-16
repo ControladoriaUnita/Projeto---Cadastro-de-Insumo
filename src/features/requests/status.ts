@@ -15,6 +15,7 @@ interface StatusMeta {
 
 export const STATUS_META: Record<RequestStatus, StatusMeta> = {
   solicitado: { label: 'Solicitado', tone: 'primary', hint: 'Aguardando o analista iniciar o cadastro.', step: 0 },
+  requer_ajuste: { label: 'Requer ajuste', tone: 'warning', hint: 'O analista devolveu a solicitação. Veja o comentário, ajuste e reenvie.', step: 0 },
   em_cadastro: { label: 'Em cadastro', tone: 'info', hint: 'O analista está montando o cadastro do insumo.', step: 1 },
   aguardando_aprovacao: { label: 'Em aprovação', tone: 'warning', hint: 'Cadastro pronto, aguardando a gestão revisar e aprovar.', step: 2 },
   em_insercao: { label: 'Inserindo no UAU', tone: 'warning', hint: 'A gestão aprovou e o insumo está sendo gravado no UAU.', step: 2 },
@@ -43,6 +44,8 @@ export const EVENT_LABELS: Record<RequestEventType, string> = {
   uau_already_present: 'Insumo já estava no UAU',
   email_sent: 'Aviso de aprovação enviado por e-mail',
   email_failed: 'Falha ao enviar o aviso por e-mail',
+  request_adjustment: 'Devolvido à obra para ajuste',
+  resubmit: 'Solicitação ajustada e reenviada',
 }
 
 const FAILURES: RequestEventType[] = ['uau_insert_failed', 'uau_confirm_failed', 'reject', 'email_failed']

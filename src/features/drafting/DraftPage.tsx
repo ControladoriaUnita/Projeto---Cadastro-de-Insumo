@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Play, Save, Send, XCircle } from 'lucide-react'
+import { Play, Save, Send, Undo2, XCircle } from 'lucide-react'
 import type { RequestDetailDTO } from '@shared/contracts'
 import { PATHS } from '@/app/navigation'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -58,6 +58,7 @@ function StartDraft({ request }: { request: RequestDetailDTO }) {
   const action = useRequestAction(request.id)
   const navigate = useNavigate()
   const [rejecting, setRejecting] = useState(false)
+  const [returning, setReturning] = useState(false)
 
   return (
     <div className="grid max-w-3xl gap-4">
@@ -70,13 +71,18 @@ function StartDraft({ request }: { request: RequestDetailDTO }) {
               Recusar
             </Button>
           )}
+          {request.actions.includes('request_adjustment') && (
+            <Button icon={<Undo2 className="size-4" />} onClick={() => setReturning(true)}>
+              Devolver à obra
+            </Button>
+          )}
           {request.actions.includes('start_draft') && (
             <Button variant="primary" icon={<Play className="size-4" />} loading={action.isPending} onClick={() => action.mutate({ action: 'start-draft' })}>
               Iniciar cadastro
             </Button>
           )}
         </CardBody>
-        {action.isError && !rejecting && (
+        {action.isError && !rejecting && !returning && (
           <Alert tone="error" className="mx-5 mb-4">
             {errorMessage(action.error)}
           </Alert>
@@ -94,6 +100,17 @@ function StartDraft({ request }: { request: RequestDetailDTO }) {
         onCancel={() => setRejecting(false)}
         onConfirm={(comment) => action.mutate({ action: 'reject', comment }, { onSuccess: () => navigate(PATHS.drafting) })}
       />
+      <CommentDialog
+        open={returning}
+        title="Devolver à obra?"
+        description="A solicitação fica como “Requer ajuste” até a obra corrigir e reenviar. Escreva o que precisa ser ajustado."
+        confirmLabel="Devolver à obra"
+        required
+        loading={action.isPending}
+        error={action.isError ? errorMessage(action.error) : null}
+        onCancel={() => setReturning(false)}
+        onConfirm={(comment) => action.mutate({ action: 'request-adjustment', comment }, { onSuccess: () => navigate(PATHS.drafting) })}
+      />
     </div>
   )
 }
@@ -104,6 +121,7 @@ function DraftEditorView({ request }: { request: RequestDetailDTO }) {
   const action = useRequestAction(request.id)
   const navigate = useNavigate()
   const [rejecting, setRejecting] = useState(false)
+  const [returning, setReturning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const validation = editor.preview.data?.validation
@@ -154,6 +172,11 @@ function DraftEditorView({ request }: { request: RequestDetailDTO }) {
               <Button icon={<Save className="size-4" />} loading={editor.saving} disabled={!editor.dirty} onClick={() => editor.save().catch((e) => setError(errorMessage(e)))}>
                 Salvar
               </Button>
+              {request.actions.includes('request_adjustment') && (
+                <Button icon={<Undo2 className="size-4" />} onClick={() => setReturning(true)}>
+                  Devolver à obra
+                </Button>
+              )}
               {request.actions.includes('reject') && (
                 <Button variant="ghost" icon={<XCircle className="size-4" />} onClick={() => setRejecting(true)}>
                   Recusar
@@ -186,6 +209,17 @@ function DraftEditorView({ request }: { request: RequestDetailDTO }) {
         error={action.isError ? errorMessage(action.error) : null}
         onCancel={() => setRejecting(false)}
         onConfirm={(comment) => action.mutate({ action: 'reject', comment }, { onSuccess: () => navigate(PATHS.drafting) })}
+      />
+      <CommentDialog
+        open={returning}
+        title="Devolver à obra?"
+        description="A solicitação fica como “Requer ajuste” até a obra corrigir e reenviar. Escreva o que precisa ser ajustado."
+        confirmLabel="Devolver à obra"
+        required
+        loading={action.isPending}
+        error={action.isError ? errorMessage(action.error) : null}
+        onCancel={() => setReturning(false)}
+        onConfirm={(comment) => action.mutate({ action: 'request-adjustment', comment }, { onSuccess: () => navigate(PATHS.drafting) })}
       />
     </>
   )

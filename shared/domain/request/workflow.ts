@@ -10,6 +10,9 @@
  *                                                                                             ▼
  *                                                                                          aprovado
  *
+ * `request_adjustment` (analista) devolve `solicitado`/`em_cadastro` à obra como `requer_ajuste`;
+ * a obra corrige e `resubmit` reenvia (volta para o cadastro se ele já tinha começado).
+ *
  * Nada é gravado no UAU antes de `approve`. Se a aprovação parar no meio (queda de rede, erro
  * do UAU), `resume` retoma de onde parou sem inserir duas vezes.
  */
@@ -17,6 +20,7 @@ import { PERMISSIONS, type Permission } from '../roles'
 
 export const REQUEST_STATUSES = [
   'solicitado',
+  'requer_ajuste',
   'em_cadastro',
   'aguardando_aprovacao',
   'em_insercao',
@@ -27,7 +31,7 @@ export const REQUEST_STATUSES = [
 ] as const
 export type RequestStatus = (typeof REQUEST_STATUSES)[number]
 
-export type RequestAction = 'cancel' | 'start_draft' | 'save_draft' | 'submit' | 'return' | 'reject' | 'approve' | 'resume'
+export type RequestAction = 'cancel' | 'start_draft' | 'save_draft' | 'submit' | 'return' | 'reject' | 'approve' | 'resume' | 'request_adjustment' | 'resubmit'
 
 /** Mínimo que o fluxo precisa saber da solicitação e de quem age. */
 export interface WorkflowSubject {
@@ -50,7 +54,7 @@ interface Rule {
 const P = PERMISSIONS
 
 const RULES: Record<RequestAction, Rule> = {
-  cancel: { from: { solicitado: P.requestCreate }, ownerOnly: true },
+  cancel: { from: { solicitado: P.requestCreate, requer_ajuste: P.requestCreate }, ownerOnly: true },
   start_draft: { from: { solicitado: P.draftEdit } },
   save_draft: { from: { em_cadastro: P.draftEdit, aguardando_aprovacao: P.approvalDecide } },
   submit: { from: { em_cadastro: P.draftEdit } },
@@ -61,6 +65,8 @@ const RULES: Record<RequestAction, Rule> = {
   },
   approve: { from: { aguardando_aprovacao: P.approvalDecide } },
   resume: { from: { em_insercao: P.approvalDecide, inserido_nao_confirmado: P.approvalDecide } },
+  request_adjustment: { from: { solicitado: P.draftEdit, em_cadastro: P.draftEdit }, requiresComment: true },
+  resubmit: { from: { requer_ajuste: P.requestCreate }, ownerOnly: true },
 }
 
 export const ACTION_LABELS: Record<RequestAction, string> = {
@@ -72,6 +78,8 @@ export const ACTION_LABELS: Record<RequestAction, string> = {
   reject: 'Recusar',
   approve: 'Aprovar e inserir no UAU',
   resume: 'Retomar inserção no UAU',
+  request_adjustment: 'Devolver à obra',
+  resubmit: 'Reenviar solicitação',
 }
 
 export class WorkflowError extends Error {

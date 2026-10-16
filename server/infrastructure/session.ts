@@ -2,7 +2,8 @@
  * Composição por requisição: escolhe os repositórios conforme DATA_SOURCE e identifica o usuário.
  */
 import type { AuthConfigDTO } from '../../shared/contracts'
-import { DEFAULT_CORPORATE_DOMAINS } from '../../shared/domain/access'
+import { DEFAULT_CORPORATE_DOMAINS, GUEST_OBRA_ID } from '../../shared/domain/access'
+import { permissionsFor } from '../../shared/domain/roles'
 import type { Actor } from '../application/context'
 import type { Repositories } from '../application/ports'
 import { createMemoryRepositories, getMemoryStore } from './memory/memory-repositories'
@@ -31,17 +32,21 @@ export interface Session {
  */
 export type SessionResult = { status: 'ok'; session: Session } | { status: 'unauthenticated' } | { status: 'inactive' }
 
+/** Obra sem login: só solicita e acompanha as solicitações abertas sem login. */
+const GUEST_OBRA: Actor = { id: GUEST_OBRA_ID, fullName: 'Obra (sem login)', email: null, role: 'obra', workName: null, permissions: permissionsFor('obra') }
+
 /**
- * - supabase: exige Bearer JWT válido do Supabase Auth e um perfil ativo em `profiles`.
+ * - supabase: sem token, entra como obra (sem login); com token, exige JWT válido do
+ *   Supabase Auth e um perfil ativo em `profiles`.
  * - memory: modo demonstração; o usuário vem do cabeçalho x-demo-user (padrão: gestor).
  */
 export async function openSession(headers: { authorization: string | null; demoUser: string | null }): Promise<SessionResult> {
   if (dataSource() === 'supabase') {
     const token = headers.authorization?.replace(/^Bearer\s+/i, '')
-    if (!token) return { status: 'unauthenticated' }
+    const repos = createSupabaseRepositories(getServiceClient())
+    if (!token) return { status: 'ok', session: { repos, actor: GUEST_OBRA } }
     const userId = await verifyAccessToken(token)
     if (!userId) return { status: 'unauthenticated' }
-    const repos = createSupabaseRepositories(getServiceClient())
     const actor = await repos.identity.loadActor(userId)
     return actor ? { status: 'ok', session: { repos, actor } } : { status: 'inactive' }
   }

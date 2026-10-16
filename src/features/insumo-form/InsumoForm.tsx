@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Wand2 } from 'lucide-react'
 import type { DraftContextDTO } from '@shared/contracts'
 import { CONTROLS, GROUPS, PAYMENT_BASIS, PAYMENT_TYPES, YES_NO } from '@shared/domain/insumo/catalog'
+import { categoryCode, categoryLabel } from '@shared/domain/insumo/categories'
 import { CODE_PREFIXES, prefixOf } from '@shared/domain/insumo/code'
 import type { DraftField, InsumoDraft } from '@shared/domain/insumo/draft'
 import { Button, Card, CardHeader, Field, Input, Select } from '@/components/ui'
@@ -133,8 +134,21 @@ export function InsumoForm({ editor, context, requestDescription, disabled }: Pr
           <Field label="Unidade" required error={error('unidade')} hint={hint('unidade')}>
             {text('unidade', { list: 'dl-unidades', maxLength: 20 })}
           </Field>
-          <Field label="Categoria" required error={error('categoria')} hint={hint('categoria')}>
-            {text('categoria', { list: 'dl-categorias', maxLength: 40, placeholder: '007.002' })}
+          <Field
+            label="Categoria"
+            required
+            error={error('categoria')}
+            hint={hint('categoria', draft.categoria && categoryLabel(draft.categoria) !== draft.categoria ? `Código no UAU: ${draft.categoria}` : undefined)}
+          >
+            {/* Mostra a descrição; o rascunho guarda o código do UAU (de-para em categories.ts) */}
+            <Input
+              value={categoryLabel(draft.categoria)}
+              onChange={(e) => patch({ categoria: categoryCode(e.target.value) })}
+              list="dl-categorias"
+              maxLength={120}
+              placeholder="Descrição da categoria"
+              disabled={disabled}
+            />
           </Field>
           <Field label="Grupo" required error={error('grupo')} hint={hint('grupo')}>
             {choice('grupo', GROUPS)}
@@ -201,7 +215,11 @@ export function InsumoForm({ editor, context, requestDescription, disabled }: Pr
       </Section>
 
       <datalist id="dl-unidades">{context?.unidades.slice(0, 300).map((u) => <option key={u.value} value={u.value}>{`${u.count} insumos`}</option>)}</datalist>
-      <datalist id="dl-categorias">{context?.categorias.slice(0, 500).map((c) => <option key={c.value} value={c.value}>{`${c.count} insumos`}</option>)}</datalist>
+      <datalist id="dl-categorias">
+        {context?.categorias.slice(0, 500).map((c) => (
+          <option key={c.value} value={categoryLabel(c.value)}>{`${c.value} · ${c.count} insumos`}</option>
+        ))}
+      </datalist>
       <datalist id="dl-caps">{context?.caps.slice(0, 300).map((c) => <option key={c.value} value={c.value}>{`${c.count} insumos`}</option>)}</datalist>
     </div>
   )

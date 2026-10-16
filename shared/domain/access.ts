@@ -3,6 +3,12 @@
  */
 import type { RoleKey } from './roles'
 
+/**
+ * Obra entra sem login: todas as solicitações abertas assim ficam com este solicitante.
+ * O nome de quem pediu vai no campo "Nome do solicitante" da solicitação.
+ */
+export const GUEST_OBRA_ID = '00000000-0000-4000-8000-0000000000ff'
+
 /** Domínio padrão; o servidor pode trocar com ACCESS_REQUEST_DOMAINS. */
 export const DEFAULT_CORPORATE_DOMAINS = ['unitaengenharia.com.br']
 

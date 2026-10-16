@@ -5,6 +5,7 @@
  * Regra de ouro: nada é gravado no UAU antes de `approve`.
  */
 import type { ApproveResultDTO, CreateRequestInput, RequestDTO, RequestDetailDTO, RequestScope } from '../../../shared/contracts'
+import { GUEST_OBRA_ID } from '../../../shared/domain/access'
 import { normalizeCode, nextFreeCode } from '../../../shared/domain/insumo/code'
 import { EMPTY_DRAFT, normalizeDraft, type DraftField, type InsumoDraft } from '../../../shared/domain/insumo/draft'
 import { buildConfirmBody, buildInsertBody } from '../../../shared/domain/insumo/uau-payload'
@@ -156,20 +157,31 @@ const detail = (deps: UseCaseDeps, r: RequestRecord) => getRequest(deps, r.id)
 
 // ----------------------------------------------------------------------------- obra
 
+/** Obra sem login: o histórico mostra o nome digitado no campo "Nome do solicitante". */
+function asRequester(deps: UseCaseDeps, requesterName: string): UseCaseDeps {
+  const { actor } = deps.ctx
+  return actor.id === GUEST_OBRA_ID ? { ...deps, ctx: { ...deps.ctx, actor: { ...actor, fullName: requesterName } } } : deps
+}
+
+/** Campos que a obra preenche (ao abrir e ao reenviar depois de um ajuste). */
+const requestFields = (input: CreateRequestInput) => ({
+  kind: input.kind,
+  urgency: input.urgency,
+  workName: input.workName,
+  description: input.description,
+  unit: input.unit,
+  specification: input.specification,
+  justification: input.justification,
+  requesterName: input.requesterName,
+})
+
 export async function createRequest(deps: UseCaseDeps, input: CreateRequestInput): Promise<RequestDetailDTO> {
   requirePermission(deps.ctx, P.requestCreate)
   const { actor } = deps.ctx
   const r = await deps.repos.requests.create({
     status: 'solicitado',
-    kind: input.kind,
-    urgency: input.urgency,
-    workName: input.workName,
-    description: input.description,
-    unit: input.unit,
-    specification: input.specification,
-    justification: input.justification,
+    ...requestFields(input),
     requesterId: actor.id,
-    requesterName: actor.fullName,
     analystId: null,
     analystName: null,
     approverId: null,
@@ -180,7 +192,15 @@ export async function createRequest(deps: UseCaseDeps, input: CreateRequestInput
     confirmedAt: null,
     lastComment: null,
   })
-  await record(deps, r, 'created', null)
+  await record(asRequester(deps, input.requesterName), r, 'created', null)
+  return detail(deps, r)
+}
+
+/** Obra corrige o que o analista pediu e reenvia; se o cadastro já tinha começado, volta para ele. */
+export async function resubmitRequest(deps: UseCaseDeps, id: string, input: CreateRequestInput): Promise<RequestDetailDTO> {
+  const r = await load(deps, id)
+  const to: RequestStatus = r.draft && r.analystId ? 'em_cadastro' : 'solicitado'
+  await transition(asRequester(deps, input.requesterName), r, 'resubmit', to, { patch: { ...requestFields(input), lastComment: null } })
   return detail(deps, r)
 }
 
@@ -240,6 +260,12 @@ export async function submitForApproval(deps: UseCaseDeps, id: string): Promise<
   assertCanPerform('submit', r, deps.ctx.actor)
   await assertDraftValid(deps, r, r.draft)
   return detail(deps, await transition(deps, r, 'submit', 'aguardando_aprovacao', { patch: { lastComment: null } }))
+}
+
+/** Devolve à obra com o que precisa ser ajustado (situação "requer ajuste"). */
+export async function requestAdjustment(deps: UseCaseDeps, id: string, comment: string): Promise<RequestDetailDTO> {
+  const r = await load(deps, id)
+  return detail(deps, await transition(deps, r, 'request_adjustment', 'requer_ajuste', { comment, patch: { lastComment: comment } }))
 }
 
 export async function rejectRequest(deps: UseCaseDeps, id: string, comment: string): Promise<RequestDetailDTO> {

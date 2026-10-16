@@ -1,19 +1,17 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Send } from 'lucide-react'
-import { createRequestSchema, type CreateRequestInput } from '@shared/contracts'
-import { REQUEST_KINDS, REQUEST_KIND_KEYS, URGENCIES, type RequestKind, type Urgency } from '@shared/domain/request/kinds'
+import type { CreateRequestInput } from '@shared/contracts'
 import { PATHS } from '@/app/navigation'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { Alert, Button, Card, CardHeader, Field, Input, Select, Spinner, Textarea } from '@/components/ui'
+import { Alert, Button, Card, CardHeader, Spinner } from '@/components/ui'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { errorMessage } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { useSimilarItems } from '@/features/catalog/api'
 import { SimilarItemsList } from '@/features/catalog/components/SimilarItemsList'
 import { useCreateRequest } from './api'
-
-type FormErrors = Partial<Record<keyof CreateRequestInput, string>>
+import { RequestFields, validateRequestForm, type RequestFormErrors } from './components/RequestFields'
 
 /** Tela da obra: pede um insumo novo e já mostra se existe algo parecido no UAU. */
 export function NewRequestPage() {
@@ -21,6 +19,8 @@ export function NewRequestPage() {
   const navigate = useNavigate()
   const create = useCreateRequest()
   const [form, setForm] = useState<CreateRequestInput>({
+    // Obra sem login digita o nome; quem entrou já vem preenchido
+    requesterName: user && !user.guest ? user.fullName : '',
     kind: 'material',
     urgency: 'normal',
     workName: user?.workName ?? '',
@@ -29,7 +29,7 @@ export function NewRequestPage() {
     specification: '',
     justification: '',
   })
-  const [errors, setErrors] = useState<FormErrors>({})
+  const [errors, setErrors] = useState<RequestFormErrors>({})
   const similar = useSimilarItems(useDebouncedValue(form.description, 400))
 
   const set = <K extends keyof CreateRequestInput>(key: K, value: CreateRequestInput[K]) => {
@@ -38,13 +38,12 @@ export function NewRequestPage() {
   }
 
   const submit = () => {
-    const parsed = createRequestSchema.safeParse(form)
-    if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors
-      setErrors(Object.fromEntries(Object.entries(fieldErrors).map(([k, v]) => [k, v?.[0]])) as FormErrors)
+    const result = validateRequestForm(form)
+    if ('errors' in result) {
+      setErrors(result.errors)
       return
     }
-    create.mutate(parsed.data, { onSuccess: (r) => navigate(PATHS.request(r.id), { state: { created: true } }) })
+    create.mutate(result.data, { onSuccess: (r) => navigate(PATHS.request(r.id), { state: { created: true } }) })
   }
 
   return (
@@ -60,39 +59,7 @@ export function NewRequestPage() {
               submit()
             }}
           >
-            <Field label="Obra" required error={errors.workName}>
-              <Input value={form.workName} onChange={(e) => set('workName', e.target.value)} maxLength={120} />
-            </Field>
-            <Field label="Tipo" required>
-              <Select value={form.kind} onChange={(e) => set('kind', e.target.value as RequestKind)}>
-                {REQUEST_KIND_KEYS.map((k) => (
-                  <option key={k} value={k}>
-                    {REQUEST_KINDS[k].label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Insumo" required error={errors.description} hint="Ex.: Rejunte epóxi cinza platina 1kg" className="sm:col-span-2">
-              <Input value={form.description} onChange={(e) => set('description', e.target.value)} maxLength={200} />
-            </Field>
-            <Field label="Unidade" required error={errors.unit} hint="kg, m², un, sc, mês…">
-              <Input value={form.unit} onChange={(e) => set('unit', e.target.value)} maxLength={20} />
-            </Field>
-            <Field label="Urgência">
-              <Select value={form.urgency} onChange={(e) => set('urgency', e.target.value as Urgency)}>
-                {Object.entries(URGENCIES).map(([k, label]) => (
-                  <option key={k} value={k}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Onde será usado" required error={errors.justification} className="sm:col-span-2">
-              <Textarea value={form.justification} onChange={(e) => set('justification', e.target.value)} maxLength={2000} />
-            </Field>
-            <Field label="Especificação técnica ou marca de referência" hint="Opcional, mas ajuda o analista a classificar." className="sm:col-span-2">
-              <Textarea value={form.specification} onChange={(e) => set('specification', e.target.value)} maxLength={2000} />
-            </Field>
+            <RequestFields form={form} errors={errors} set={set} />
             {create.isError && (
               <Alert tone="error" className="sm:col-span-2">
                 {errorMessage(create.error)}

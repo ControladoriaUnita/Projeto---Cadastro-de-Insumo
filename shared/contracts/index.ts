@@ -7,7 +7,7 @@ import type { CatalogItem } from '../domain/insumo/catalog'
 import type { DraftValidation, InsumoDraft } from '../domain/insumo/draft'
 import type { SimilarItem } from '../domain/insumo/similarity'
 import type { UauConfirmBody, UauInsertBody } from '../domain/insumo/uau-payload'
-import { REQUEST_KIND_KEYS, type RequestKind, type Urgency } from '../domain/request/kinds'
+import { REQUESTABLE_KINDS, type RequestKind, type Urgency } from '../domain/request/kinds'
 import type { RequestAction, RequestEventType, RequestStatus } from '../domain/request/workflow'
 import type { RoleKey } from '../domain/roles'
 
@@ -30,6 +30,8 @@ export interface UserDTO {
   /** Obra padrão de quem é do perfil "obra" */
   workName: string | null
   permissions: string[]
+  /** Obra sem login (não tem cadastro) */
+  guest: boolean
 }
 
 /** Configuração pública (sem login): como a tela deve autenticar. */
@@ -47,13 +49,13 @@ export const accessRequestSchema = z
   .object({
     fullName: z.string().trim().min(3, 'Informe seu nome completo.').max(120),
     email: z.string().trim().toLowerCase().email('E-mail inválido.').max(160),
-    requestedRole: z.enum(['obra', 'analista', 'gestor']),
+    // Obra não precisa de cadastro: solicita sem login
+    requestedRole: z.enum(['analista', 'gestor']),
     workName: z.string().trim().max(120).default(''),
     message: z.string().trim().max(1000).default(''),
     /** Campo-isca invisível: robôs preenchem, pessoas não */
     website: z.string().max(200).default(''),
   })
-  .refine((v) => v.requestedRole !== 'obra' || v.workName.length >= 2, { message: 'Informe a obra.', path: ['workName'] })
 export type AccessRequestInput = z.infer<typeof accessRequestSchema>
 
 // ----------------------------------------------------------------------------- integração (tela da gestão)
@@ -90,6 +92,17 @@ export interface AppConfigDTO {
   uauWriteEnabled: boolean
   /** Avisos por e-mail: none (desligado) · log (só no terminal) · graph (Microsoft 365) */
   emailProvider: 'none' | 'log' | 'graph'
+}
+
+// ----------------------------------------------------------------------------- obras (UAU)
+
+/** Obra ativa no UAU (Obras/ObterObrasAtivas). */
+export interface WorkDTO {
+  codigo: string
+  empresa: number | null
+  descricao: string
+  /** Texto gravado na solicitação e usado no filtro: "código - descrição" */
+  label: string
 }
 
 // ----------------------------------------------------------------------------- solicitações
@@ -144,9 +157,10 @@ export interface RequestDetailDTO extends RequestDTO {
 const text = (max: number) => z.string().trim().max(max)
 
 export const createRequestSchema = z.object({
-  kind: z.enum(REQUEST_KIND_KEYS),
+  requesterName: text(120).min(3, 'Informe o nome do solicitante.'),
+  kind: z.enum(REQUESTABLE_KINDS),
   urgency: z.enum(['normal', 'urgente']).default('normal'),
-  workName: text(120).min(2, 'Informe a obra.'),
+  workName: text(160).min(2, 'Informe a obra.'),
   description: text(200).min(5, 'Descreva o insumo (mínimo 5 caracteres).'),
   unit: text(20).min(1, 'Informe a unidade.'),
   specification: text(2000).default(''),
@@ -169,7 +183,8 @@ export const draftSchema = z.object({
   codigo: text(20),
   descricao: text(250),
   unidade: text(20),
-  categoria: text(40),
+  // Código do UAU; enquanto o analista digita a descrição, guarda o texto digitado
+  categoria: text(120),
   grupo: optionalInt([1, 2, 3, 4, 5]),
   controle: optionalInt([1, 2]),
   tipoPagamento: optionalInt([0, 1, 2]),

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
-import { ArrowRight, Ban } from 'lucide-react'
+import { ArrowRight, Ban, Send } from 'lucide-react'
+import type { CreateRequestInput, RequestDetailDTO } from '@shared/contracts'
 import { APPROVAL_QUEUE, DRAFTING_QUEUE } from '@shared/domain/request/workflow'
 import { PERMISSIONS } from '@shared/domain/roles'
 import { PATHS } from '@/app/navigation'
@@ -9,9 +10,10 @@ import { Alert, Button, Card, CardBody, CardHeader, Skeleton } from '@/component
 import { errorMessage } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { formatDateTime, formatRequestNumber } from '@/utils/format'
-import { useRequest, useRequestAction } from './api'
+import { useRequest, useRequestAction, useResubmitRequest } from './api'
 import { CommentDialog } from './components/CommentDialog'
 import { ProgressSteps } from './components/ProgressSteps'
+import { RequestFields, formFromRequest, validateRequestForm, type RequestFormErrors } from './components/RequestFields'
 import { RequestSummary } from './components/RequestSummary'
 import { RequestTimeline } from './components/RequestTimeline'
 import { StatusBadge, UrgencyBadge } from './components/StatusBadge'
@@ -91,9 +93,14 @@ export function RequestDetailPage() {
                   {r.lastComment}
                 </Alert>
               )}
+              {r.status === 'requer_ajuste' && r.lastComment && (
+                <Alert tone="warning" title="Devolvido pelo analista: requer ajuste">
+                  {r.lastComment}
+                </Alert>
+              )}
             </CardBody>
           </Card>
-          <RequestSummary request={r} />
+          {r.actions.includes('resubmit') ? <AdjustRequest key={r.updatedAt} request={r} /> : <RequestSummary request={r} />}
         </div>
 
         <Card className="self-start">
@@ -116,5 +123,51 @@ export function RequestDetailPage() {
         onConfirm={(comment) => action.mutate({ action: 'cancel', comment }, { onSuccess: () => setCancelling(false) })}
       />
     </>
+  )
+}
+
+/** A obra corrige o que o analista pediu e reenvia a solicitação. */
+function AdjustRequest({ request }: { request: RequestDetailDTO }) {
+  const resubmit = useResubmitRequest(request.id)
+  const [form, setForm] = useState<CreateRequestInput>(() => formFromRequest(request))
+  const [errors, setErrors] = useState<RequestFormErrors>({})
+
+  const set = <K extends keyof CreateRequestInput>(key: K, value: CreateRequestInput[K]) => {
+    setForm((f) => ({ ...f, [key]: value }))
+    setErrors((e) => ({ ...e, [key]: undefined }))
+  }
+
+  const submit = () => {
+    const result = validateRequestForm(form)
+    if ('errors' in result) {
+      setErrors(result.errors)
+      return
+    }
+    resubmit.mutate(result.data)
+  }
+
+  return (
+    <Card>
+      <CardHeader title={`Ajustar solicitação ${formatRequestNumber(request.number)}`} description="Corrija o que o analista pediu e reenvie." />
+      <form
+        className="grid gap-4 px-5 py-4 sm:grid-cols-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          submit()
+        }}
+      >
+        <RequestFields form={form} errors={errors} set={set} />
+        {resubmit.isError && (
+          <Alert tone="error" className="sm:col-span-2">
+            {errorMessage(resubmit.error)}
+          </Alert>
+        )}
+        <div className="flex justify-end sm:col-span-2">
+          <Button type="submit" variant="primary" loading={resubmit.isPending} icon={<Send className="size-4" />}>
+            Reenviar solicitação
+          </Button>
+        </div>
+      </form>
+    </Card>
   )
 }

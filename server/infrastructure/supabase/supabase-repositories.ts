@@ -3,6 +3,7 @@
  * Colunas em snake_case no banco ↔ camelCase no domínio.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { GUEST_OBRA_ID } from '../../../shared/domain/access'
 import { isRoleKey, permissionsFor } from '../../../shared/domain/roles'
 import type { Actor } from '../../application/context'
 import type { EventRecord, NewRequestRecord, Repositories, RequestPatch, RequestRecord } from '../../application/ports'
@@ -35,11 +36,14 @@ const REQUEST_COLUMNS: Record<keyof RequestRecord, string> = {
 
 type DbRow = Record<string, unknown>
 
+// Obra sem login não tem perfil: no banco o solicitante (e o autor do evento) fica vazio
+const toDbPerson = (id: string | null) => (id === GUEST_OBRA_ID ? null : id)
+
 function toDb(input: Partial<RequestRecord>): DbRow {
   const out: DbRow = {}
   for (const [k, v] of Object.entries(input)) {
     const column = REQUEST_COLUMNS[k as keyof RequestRecord]
-    if (column && v !== undefined) out[column] = v
+    if (column && v !== undefined) out[column] = k === 'requesterId' ? toDbPerson(v as string | null) : v
   }
   return out
 }
@@ -47,6 +51,7 @@ function toDb(input: Partial<RequestRecord>): DbRow {
 function fromDb(row: DbRow): RequestRecord {
   const out: Record<string, unknown> = {}
   for (const [k, column] of Object.entries(REQUEST_COLUMNS)) out[k] = row[column] ?? null
+  out.requesterId ??= GUEST_OBRA_ID
   return out as unknown as RequestRecord
 }
 
@@ -106,7 +111,7 @@ export function createSupabaseRepositories(db: SupabaseClient): Repositories {
     requests: {
       async list(filter = {}) {
         let q = db.from('insumo_requests').select('*').order('created_at', { ascending: false })
-        if (filter.requesterId) q = q.eq('requester_id', filter.requesterId)
+        if (filter.requesterId) q = filter.requesterId === GUEST_OBRA_ID ? q.is('requester_id', null) : q.eq('requester_id', filter.requesterId)
         if (filter.statuses) q = q.in('status', [...filter.statuses])
         return (check(await q) as DbRow[]).map(fromDb)
       },
@@ -135,7 +140,7 @@ export function createSupabaseRepositories(db: SupabaseClient): Repositories {
           await db.from('insumo_request_events').insert({
             request_id: e.requestId,
             at: e.at,
-            actor_id: e.actorId,
+            actor_id: toDbPerson(e.actorId),
             actor_name: e.actorName,
             type: e.type,
             from_status: e.fromStatus,

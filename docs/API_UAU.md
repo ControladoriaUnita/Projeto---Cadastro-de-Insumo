@@ -15,6 +15,7 @@ entre chamadas simultâneas e renova uma vez quando recebe HTTP 401.
 | Rota | Uso | Observações |
 |---|---|---|
 | `InsumosGeral/ConsultarInsumosGeralPorDescricao` | cadastro inteiro | `{ "Descricao": "%" }` traz tudo (~13 mil itens). Descrição vazia responde 400. Cache de 10 min no servidor. Leva de 10 s a mais de 1 min; duas leituras simultâneas deixam o UAU bem mais lento. |
+| `Obras/ObterObrasAtivas` | obras ativas (campo "Obra" da solicitação e filtro do acompanhamento) | Sem parâmetros; ~1 s. Cache de 10 min no servidor. Gravamos na solicitação "`Cod_obr` - `Descr_obr`". |
 
 **Não usar para consultar por código** (testado em 13/10/2026):
 
@@ -22,6 +23,10 @@ entre chamadas simultâneas e renova uma vez quando recebe HTTP 401.
 - `InsumosGeral/ConsultarInsumosGeralPorChave` exige os campos da inserção (`descricao`, `usuario`, `unidadesInsumo`); não está claro que seja só leitura.
 
 Por isso, para conferir se um código está livre logo antes de gravar, a plataforma relê o cadastro inteiro.
+
+**Categorias de insumo:** a API não tem rota que devolva a descrição das categorias (testado em
+16/10/2026: composições e lista de preço de referência não trazem as categorias de insumo). A tela
+mostra a descrição pelo de-para em `shared/domain/insumo/categories.ts` e a inserção envia o código.
 
 Colunas usadas (`shared/domain/insumo/catalog.ts`) → campo da inserção:
 

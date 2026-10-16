@@ -9,7 +9,7 @@ type Mode = 'login' | 'forgot'
 
 /** Login com as credenciais do Supabase Auth, e pedido de nova senha por e-mail. */
 export function LoginPage() {
-  const { access, demo, signIn, requestPasswordReset } = useAuth()
+  const { access, demo, guest, signIn, requestPasswordReset } = useAuth()
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -17,8 +17,8 @@ export function LoginPage() {
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  // Já entrou (ou o servidor está em modo demonstração, sem login)
-  if (demo || access === 'ready' || access === 'inactive') return <Navigate to="/" replace />
+  // Já entrou (ou o servidor está em modo demonstração, sem login). Obra sem login pode entrar aqui.
+  if (demo || ((access === 'ready' || access === 'inactive') && !guest)) return <Navigate to="/" replace />
 
   const run = (action: () => Promise<void>) => async (e: FormEvent) => {
     e.preventDefault()
@@ -76,7 +76,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthLayout title="Entrar" description="Use o e-mail corporativo e a senha cadastrados para você.">
+    <AuthLayout title="Entrar" description="Acesso do analista e da gestão. A obra solicita insumos sem login.">
       {access === 'error' && (
         <Alert tone="error" className="mb-4">
           Não foi possível falar com o servidor. Tente recarregar a página.
@@ -102,6 +102,12 @@ export function LoginPage() {
         <Link to="/solicitar-acesso" className="font-medium text-primary hover:underline">
           Solicitar acesso
         </Link>
+        <p className="mt-2">
+          É da obra?{' '}
+          <Link to="/" className="font-medium text-primary hover:underline">
+            Solicitar insumo sem login
+          </Link>
+        </p>
       </div>
     </AuthLayout>
   )

@@ -6,6 +6,7 @@
  *   1. InsumosGeral/InserirInsumosGeral   → cria o insumo ativo e "pendente/não confirmado" (confirmado = 0)
  *   2. InsumosGeral/AtualizarInsumosGeral → muda a situação para "confirmado" (confirmado = 1)
  */
+import { categoryCode } from './categories'
 import { normalizeDraft, type InsumoDraft } from './draft'
 
 export const UAU_ROUTES = {
@@ -42,7 +43,8 @@ export function buildInsertBody(raw: InsumoDraft, opts: { uauUser: string; today
   // Nome do campo na rota de inserção → valor do rascunho
   const optional: [string, string | number | boolean | null][] = [
     ['grupo', d.grupo],
-    ['CategoriaDoInsumo', d.categoria],
+    // De-para: a tela trabalha com a descrição da categoria; o UAU recebe o código
+    ['CategoriaDoInsumo', categoryCode(d.categoria)],
     ['controle', d.controle],
     ['tipoPagamento', d.tipoPagamento],
     ['controlaEstoque', d.controlaEstoque],

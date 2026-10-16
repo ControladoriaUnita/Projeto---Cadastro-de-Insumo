@@ -11,6 +11,8 @@ export const REQUEST_KINDS = {
 
 export type RequestKind = keyof typeof REQUEST_KINDS
 export const REQUEST_KIND_KEYS = Object.keys(REQUEST_KINDS) as [RequestKind, ...RequestKind[]]
+/** Tipos que a obra pode escolher ao solicitar (despesa indireta fica só para solicitações antigas) */
+export const REQUESTABLE_KINDS = ['material', 'servico'] as const satisfies readonly RequestKind[]
 
 export const URGENCIES = { normal: 'Normal', urgente: 'Urgente' } as const
 export type Urgency = keyof typeof URGENCIES

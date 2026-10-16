@@ -8,7 +8,7 @@ import type { UauConfirmBody, UauInsertBody } from '../../shared/domain/insumo/u
 import type { RequestKind, Urgency } from '../../shared/domain/request/kinds'
 import type { RequestEventType, RequestStatus } from '../../shared/domain/request/workflow'
 import type { RoleKey } from '../../shared/domain/roles'
-import type { UauConnectionCheck } from '../../shared/contracts'
+import type { UauConnectionCheck, WorkDTO } from '../../shared/contracts'
 import type { Actor, RequestContext } from './context'
 
 // ----------------------------------------------------------------------------- solicitações
@@ -40,7 +40,7 @@ export interface RequestRecord {
 }
 
 export type NewRequestRecord = Omit<RequestRecord, 'id' | 'number' | 'createdAt' | 'updatedAt'>
-export type RequestPatch = Partial<Omit<RequestRecord, 'id' | 'number' | 'createdAt' | 'updatedAt' | 'requesterId' | 'requesterName'>>
+export type RequestPatch = Partial<Omit<RequestRecord, 'id' | 'number' | 'createdAt' | 'updatedAt' | 'requesterId'>>
 
 export interface EventRecord {
   id: string
@@ -130,6 +130,8 @@ export interface UauGateway {
   confirm(body: UauConfirmBody): Promise<UauWriteResult>
   /** Descarta o cache do cadastro (ex.: depois de inserir) */
   invalidateCatalog(): void
+  /** Obras ativas no UAU (em cache) */
+  listWorks(): Promise<WorkDTO[]>
 }
 
 // ----------------------------------------------------------------------------- e-mail

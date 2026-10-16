@@ -10,6 +10,7 @@ import type {
   RequestDTO,
   RequestDetailDTO,
   RequestScope,
+  WorkDTO,
 } from '@shared/contracts'
 import { api } from '@/lib/api'
 
@@ -43,9 +44,19 @@ export function useCreateRequest() {
   return useWrite((input: CreateRequestInput) => api<RequestDetailDTO>('/requests', { method: 'POST', body: input }))
 }
 
+/** Obra reenvia a solicitação depois do ajuste pedido pelo analista. */
+export function useResubmitRequest(id: string) {
+  return useWrite((input: CreateRequestInput) => api<RequestDetailDTO>(`/requests/${id}/resubmit`, { method: 'POST', body: input }))
+}
+
+/** Obras ativas no UAU (campo "Obra" e filtro). */
+export function useWorks() {
+  return useQuery({ queryKey: ['works'], queryFn: () => api<WorkDTO[]>('/works'), staleTime: 10 * 60_000 })
+}
+
 /** Ações simples do fluxo (POST /requests/:id/<ação>). */
 export function useRequestAction(id: string) {
-  return useWrite(({ action, comment }: { action: 'cancel' | 'start-draft' | 'submit' | 'return' | 'reject'; comment?: string }) =>
+  return useWrite(({ action, comment }: { action: 'cancel' | 'start-draft' | 'submit' | 'return' | 'reject' | 'request-adjustment'; comment?: string }) =>
     api<RequestDetailDTO>(`/requests/${id}/${action}`, { method: 'POST', body: comment === undefined ? {} : { comment } }),
   )
 }

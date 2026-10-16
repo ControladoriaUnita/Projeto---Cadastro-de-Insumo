@@ -4,6 +4,7 @@
  * avisos só alertam). A mesma regra roda na tela e no servidor.
  */
 import { CONTROLS, GROUPS, PAYMENT_BASIS, PAYMENT_TYPES, type CatalogItem } from './catalog'
+import { categoryCode } from './categories'
 import { CODE_PATTERN, CODE_PREFIXES, PREFIXES, nextFreeCode, normalizeCode, prefixOf } from './code'
 import { IDENTICAL_SCORE, findSimilar, type SimilarItem } from './similarity'
 import { squish } from './text'
@@ -158,7 +159,7 @@ export function validateDraft(raw: InsumoDraft, { index, reserved }: ValidationC
     warn('unidade', `Nenhum insumo usa a unidade "${d.unidade}". Confira se ela existe no UAU (maiúsculas e minúsculas contam).`)
   }
   if (!d.categoria) error('categoria', 'Informe a categoria.')
-  else if (!index.categories.has(d.categoria)) warn('categoria', `Nenhum insumo usa a categoria "${d.categoria}". Confira se ela existe no UAU.`)
+  else if (!index.categories.has(categoryCode(d.categoria))) warn('categoria', `Nenhum insumo usa a categoria "${d.categoria}". Confira se ela existe no UAU.`)
 
   if (d.grupo === null) error('grupo', 'Informe o grupo.')
   else if (!(d.grupo in GROUPS)) error('grupo', 'Grupo inválido.')

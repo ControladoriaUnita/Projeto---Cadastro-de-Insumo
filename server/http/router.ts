@@ -15,6 +15,7 @@ import {
   type AppConfigDTO,
   type UserDTO,
 } from '../../shared/contracts'
+import { GUEST_OBRA_ID } from '../../shared/domain/access'
 import { ROLE_LABELS } from '../../shared/domain/roles'
 import { AppError, toAppError, type Actor, type RequestContext } from '../application/context'
 import type { UseCaseDeps } from '../application/ports'
@@ -22,6 +23,7 @@ import { submitAccessRequest } from '../application/use-cases/access-requests'
 import * as catalog from '../application/use-cases/catalog'
 import { checkIntegration } from '../application/use-cases/integration'
 import * as requests from '../application/use-cases/requests'
+import { listWorks } from '../application/use-cases/works'
 import { authConfig, corporateDomains, dataSource, demoUsers, openSession, publicRepositories } from '../infrastructure/session'
 import { emailProvider, getMailer } from '../infrastructure/email'
 import { envPresence } from '../infrastructure/env'
@@ -51,7 +53,7 @@ const query = (url: URL) => Object.fromEntries(url.searchParams)
 const optionalComment = z.object({ comment: z.string().trim().max(2000).optional() })
 
 function toUserDTO(actor: Actor): UserDTO {
-  return { ...actor, roleLabel: ROLE_LABELS[actor.role] }
+  return { ...actor, roleLabel: ROLE_LABELS[actor.role], guest: actor.id === GUEST_OBRA_ID }
 }
 
 // ----------------------------------------------------------------------------- sessão
@@ -80,6 +82,13 @@ route('POST', '/requests/:id/reject', async ({ deps, params, body }) =>
 route('POST', '/requests/:id/approve', async ({ deps, params, body }) =>
   requests.approveRequest(deps, parse(uuidParam, params.id), parse(approveSchema, await body()).draft))
 route('POST', '/requests/:id/resume', async ({ deps, params }) => requests.resumeApproval(deps, parse(uuidParam, params.id)))
+route('POST', '/requests/:id/request-adjustment', async ({ deps, params, body }) =>
+  requests.requestAdjustment(deps, parse(uuidParam, params.id), parse(commentSchema, await body()).comment))
+route('POST', '/requests/:id/resubmit', async ({ deps, params, body }) =>
+  requests.resubmitRequest(deps, parse(uuidParam, params.id), parse(createRequestSchema, await body())))
+
+// ----------------------------------------------------------------------------- obras UAU
+route('GET', '/works', async ({ deps }) => listWorks(deps))
 
 // ----------------------------------------------------------------------------- cadastro UAU
 route('GET', '/catalog', async ({ deps, url }) => catalog.searchCatalog(deps, parse(catalogQuerySchema, query(url))))

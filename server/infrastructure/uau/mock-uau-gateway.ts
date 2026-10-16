@@ -6,7 +6,9 @@ import { fromUauRow, type CatalogItem } from '../../../shared/domain/insumo/cata
 import { normalizeCode } from '../../../shared/domain/insumo/code'
 import { UAU_CONFIRMATION, type UauConfirmBody, type UauInsertBody } from '../../../shared/domain/insumo/uau-payload'
 import type { CatalogSnapshot, UauConnectionCheck, UauGateway, UauWriteResult } from '../../application/ports'
-import { SAMPLE_CATALOG } from './sample-catalog'
+import { fromUauWorkRow, sortWorks } from '../../../shared/domain/works'
+import type { WorkDTO } from '../../../shared/contracts'
+import { SAMPLE_CATALOG, SAMPLE_WORKS } from './sample-catalog'
 
 export class MockUauGateway implements UauGateway {
   readonly mode = 'mock' as const
@@ -78,6 +80,10 @@ export class MockUauGateway implements UauGateway {
 
   invalidateCatalog() {
     this.touch()
+  }
+
+  async listWorks(): Promise<WorkDTO[]> {
+    return sortWorks(SAMPLE_WORKS.map(fromUauWorkRow))
   }
 
   private touch() {

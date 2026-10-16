@@ -42,9 +42,10 @@ beforeEach(() => {
 })
 
 const newRequest = {
+  requesterName: 'Carla Mendes',
   kind: 'material',
   urgency: 'normal',
-  workName: 'Pazza Ipanema 212',
+  workName: 'PZ212 - Pazza Ipanema 212',
   description: 'Rejunte epóxi cinza platina 1kg',
   unit: 'kg',
   specification: '',
@@ -76,18 +77,18 @@ describe('pedido de acesso (sem login)', () => {
     const res = await handle(new Request('http://localhost/api/access-requests', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }))
     return { status: res.status, data: (await res.json()) as { error?: { code: string } } }
   }
-  const valid = { fullName: 'Maria Souza', email: 'Maria.Souza@UnitaEngenharia.com.br', requestedRole: 'obra', workName: 'Joy+ Evans' }
+  const valid = { fullName: 'Maria Souza', email: 'Maria.Souza@UnitaEngenharia.com.br', requestedRole: 'analista' }
 
   it('grava o pedido com o e-mail em minúsculas e não cria usuário', async () => {
     expect((await post(valid)).status).toBe(201)
     const store = getMemoryStore()
-    expect(store.accessRequests).toEqual([expect.objectContaining({ email: 'maria.souza@unitaengenharia.com.br', requestedRole: 'obra', status: 'pendente' })])
+    expect(store.accessRequests).toEqual([expect.objectContaining({ email: 'maria.souza@unitaengenharia.com.br', requestedRole: 'analista', status: 'pendente' })])
     expect([...store.users.values()].some((u) => u.email === 'maria.souza@unitaengenharia.com.br')).toBe(false)
   })
 
-  it('só aceita e-mail corporativo e exige a obra para o perfil obra', async () => {
+  it('só aceita e-mail corporativo e não aceita o perfil obra (a obra entra sem login)', async () => {
     expect((await post({ ...valid, email: 'maria@gmail.com' })).data.error?.code).toBe('EMAIL_NOT_CORPORATE')
-    expect((await post({ ...valid, workName: '' })).status).toBe(422)
+    expect((await post({ ...valid, requestedRole: 'obra', workName: 'Joy+ Evans' })).status).toBe(422)
   })
 
   it('repetido ou de robô responde igual, sem gravar de novo', async () => {
@@ -128,6 +129,19 @@ describe('permissões por papel', () => {
   it('valida a entrada com Zod', async () => {
     const r = await call(OBRA, 'POST', '/requests', { ...newRequest, description: 'x' })
     expect(r.status).toBe(422)
+  })
+
+  it('exige o nome do solicitante e só aceita material ou serviço', async () => {
+    expect((await call(OBRA, 'POST', '/requests', { ...newRequest, requesterName: '' })).status).toBe(422)
+    expect((await call(OBRA, 'POST', '/requests', { ...newRequest, kind: 'despesa_indireta' })).status).toBe(422)
+    const r = await call<RequestDetailDTO>(OBRA, 'POST', '/requests', { ...newRequest, kind: 'servico', requesterName: 'João da Obra' })
+    expect(r.data).toMatchObject({ kind: 'servico', requester: { name: 'João da Obra' } })
+  })
+
+  it('lista as obras do UAU para o campo e o filtro', async () => {
+    const r = await call<{ label: string }[]>(OBRA, 'GET', '/works')
+    expect(r.status).toBe(200)
+    expect(r.data.map((w) => w.label)).toContain('PZ212 - Pazza Ipanema 212')
   })
 })
 
@@ -207,6 +221,19 @@ describe('fluxo obra → analista → gestor → UAU', () => {
     expect((await call(GESTOR, 'POST', `/requests/${d.id}/return`, { comment: '' })).status).toBe(422)
     const r = await call<RequestDetailDTO>(GESTOR, 'POST', `/requests/${d.id}/return`, { comment: 'Use a unidade "un".' })
     expect(r.data).toMatchObject({ status: 'em_cadastro', lastComment: 'Use a unidade "un".' })
+  })
+
+  it('analista devolve à obra (requer ajuste) e a obra ajusta e reenvia', async () => {
+    const created = await call<RequestDetailDTO>(OBRA, 'POST', '/requests', newRequest)
+    const id = created.data.id
+    expect((await call(ANALISTA, 'POST', `/requests/${id}/request-adjustment`, { comment: '' })).status).toBe(422)
+    const returned = await call<RequestDetailDTO>(ANALISTA, 'POST', `/requests/${id}/request-adjustment`, { comment: 'Informe a cor do rejunte.' })
+    expect(returned.data).toMatchObject({ status: 'requer_ajuste', lastComment: 'Informe a cor do rejunte.' })
+    expect((await call(OUTRA_OBRA, 'POST', `/requests/${id}/resubmit`, newRequest)).status).toBe(404)
+
+    const resent = await call<RequestDetailDTO>(OBRA, 'POST', `/requests/${id}/resubmit`, { ...newRequest, description: 'Rejunte epóxi cinza platina 1kg (cor 113)' })
+    expect(resent.data).toMatchObject({ status: 'solicitado', lastComment: null, description: 'Rejunte epóxi cinza platina 1kg (cor 113)' })
+    expect(resent.data.events.map((e) => e.type)).toEqual(['created', 'request_adjustment', 'resubmit'])
   })
 
   it('analista não aprova', async () => {

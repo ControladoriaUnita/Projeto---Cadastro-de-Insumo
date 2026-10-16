@@ -1,5 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import { LogOut } from 'lucide-react'
+import { Link, NavLink, Outlet } from 'react-router-dom'
+import { LogIn, LogOut } from 'lucide-react'
 import logoWhite from '@/assets/brand/logo-unita-white.png'
 import { HOME_BY_ROLE, NAV } from '@/app/navigation'
 import { Button } from '@/components/ui'
@@ -43,11 +43,19 @@ export function AppShell() {
                 <p className="text-xs text-ink-400">{user.workName ? `${user.roleLabel} · ${user.workName}` : user.roleLabel}</p>
               </div>
             )}
-            {!demo && (
-              <Button variant="inverse" size="sm" icon={<LogOut className="size-4" />} onClick={signOut}>
-                Sair
-              </Button>
-            )}
+            {!demo &&
+              (user?.guest ? (
+                // Obra usa sem login; analista e gestão entram por aqui
+                <Link to="/entrar">
+                  <Button variant="inverse" size="sm" icon={<LogIn className="size-4" />}>
+                    Entrar
+                  </Button>
+                </Link>
+              ) : (
+                <Button variant="inverse" size="sm" icon={<LogOut className="size-4" />} onClick={signOut}>
+                  Sair
+                </Button>
+              ))}
           </div>
         </div>
       </header>

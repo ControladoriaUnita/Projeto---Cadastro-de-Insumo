@@ -21,8 +21,8 @@ const user = (id: string, fullName: string, email: string, role: RoleKey, workNa
 export const DEMO_USERS: Actor[] = [
   user('00000000-0000-4000-8000-000000000001', 'Lucas · Controladoria', 'lucas@unitaengenharia.com.br', 'gestor'),
   user('00000000-0000-4000-8000-000000000002', 'Bruno Alves', 'cadastro@unita.example', 'analista'),
-  user('00000000-0000-4000-8000-000000000003', 'Carla Mendes', 'obra.pazza@unita.example', 'obra', 'Pazza Ipanema 212'),
-  user('00000000-0000-4000-8000-000000000004', 'Diego Rocha', 'obra.joy@unita.example', 'obra', 'Joy+ Evans'),
+  user('00000000-0000-4000-8000-000000000003', 'Carla Mendes', 'obra.pazza@unita.example', 'obra', 'PZ212 - Pazza Ipanema 212'),
+  user('00000000-0000-4000-8000-000000000004', 'Diego Rocha', 'obra.joy@unita.example', 'obra', 'JOY01 - Joy+ Evans'),
 ]
 
 const [GESTOR, ANALISTA, OBRA_PAZZA, OBRA_JOY] = DEMO_USERS as [Actor, Actor, Actor, Actor]

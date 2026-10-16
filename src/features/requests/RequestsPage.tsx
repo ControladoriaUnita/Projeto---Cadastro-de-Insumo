@@ -5,10 +5,10 @@ import { FINAL_STATUSES } from '@shared/domain/request/workflow'
 import { PERMISSIONS } from '@shared/domain/roles'
 import { PATHS } from '@/app/navigation'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { Alert, Button, Card, EmptyState, KpiStrip, Skeleton, Tabs } from '@/components/ui'
+import { Alert, Button, Card, EmptyState, KpiStrip, Select, Skeleton, Tabs } from '@/components/ui'
 import { errorMessage } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { useRequests } from './api'
+import { useRequests, useWorks } from './api'
 import { RequestsTable } from './components/RequestsTable'
 
 type View = 'open' | 'done' | 'all'
@@ -19,12 +19,20 @@ export function RequestsPage() {
   const seesAll = can(PERMISSIONS.requestReadAll)
   const requests = useRequests(seesAll ? 'all' : 'mine')
   const [view, setView] = useState<View>('open')
+  const [work, setWork] = useState('')
+  const works = useWorks()
+
+  // Obras do UAU; se o UAU não responder, as obras das próprias solicitações
+  const workOptions = useMemo(
+    () => works.data?.map((w) => w.label) ?? [...new Set((requests.data ?? []).map((r) => r.workName))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [works.data, requests.data],
+  )
 
   const groups = useMemo(() => {
-    const all = requests.data ?? []
+    const all = (requests.data ?? []).filter((r) => !work || r.workName === work)
     const done = all.filter((r) => FINAL_STATUSES.includes(r.status))
     return { all, done, open: all.filter((r) => !FINAL_STATUSES.includes(r.status)) }
-  }, [requests.data])
+  }, [requests.data, work])
 
   const rows = groups[view]
   const approved = groups.done.filter((r) => r.status === 'aprovado').length
@@ -65,6 +73,16 @@ export function RequestsPage() {
               { key: 'done', label: 'Concluídas', count: groups.done.length },
               { key: 'all', label: 'Todas', count: groups.all.length },
             ]}
+            trailing={
+              <Select value={work} onChange={(e) => setWork(e.target.value)} className="w-72 max-w-full" aria-label="Filtrar por obra">
+                <option value="">Todas as obras</option>
+                {workOptions.map((w) => (
+                  <option key={w} value={w}>
+                    {w}
+                  </option>
+                ))}
+              </Select>
+            }
           />
         </div>
         {requests.isLoading ? (

@@ -4,6 +4,8 @@
 import { fromUauRow, type CatalogItem } from '../../../shared/domain/insumo/catalog'
 import { normalizeCode } from '../../../shared/domain/insumo/code'
 import { UAU_ROUTES, type UauConfirmBody, type UauInsertBody } from '../../../shared/domain/insumo/uau-payload'
+import { fromUauWorkRow, sortWorks } from '../../../shared/domain/works'
+import type { WorkDTO } from '../../../shared/contracts'
 import { IntegrationError } from '../../application/context'
 import type { CatalogSnapshot, UauCheckStep, UauConnectionCheck, UauGateway, UauWriteResult } from '../../application/ports'
 import { UauClient, extractRows, type UauConfig } from './uau-client'
@@ -16,6 +18,10 @@ interface CatalogCache extends CatalogSnapshot {
   at: number
   raw: Map<string, Record<string, unknown>>
 }
+
+// Obras ativas: lista pequena (~1 s), muda pouco
+const WORKS_ROUTE = 'Obras/ObterObrasAtivas'
+const WORKS_TTL_MS = 10 * 60 * 1000
 
 // Diagnóstico: consulta pequena e prazo curto
 const CHECK_QUERY = 'CIMENTO'
@@ -31,6 +37,7 @@ export class HttpUauGateway implements UauGateway {
   private readonly baseUrl: string
   private cache: CatalogCache | null = null
   private loading: Promise<CatalogCache> | null = null
+  private works: { items: WorkDTO[]; at: number } | null = null
 
   constructor(config: UauConfig) {
     this.client = new UauClient(config)
@@ -120,6 +127,15 @@ export class HttpUauGateway implements UauGateway {
 
   invalidateCatalog() {
     this.cache = null
+  }
+
+  async listWorks(): Promise<WorkDTO[]> {
+    if (this.works && Date.now() - this.works.at < WORKS_TTL_MS) return this.works.items
+    const res = await this.client.call(WORKS_ROUTE, {})
+    if (!res.ok) throw new IntegrationError(`O UAU não devolveu as obras (HTTP ${res.status}).`)
+    const items = sortWorks(extractRows(res.data).map(fromUauWorkRow))
+    this.works = { items, at: Date.now() }
+    return items
   }
 
   private async write(route: string, body: unknown): Promise<UauWriteResult> {
