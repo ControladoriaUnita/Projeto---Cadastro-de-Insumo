@@ -72,7 +72,7 @@ export function CopyFromInsumo({ editor, requestDescription, disabled }: Props) 
     <div className="grid gap-3">
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-400" aria-hidden />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar insumo existente por código ou descrição" className="pl-9" aria-label="Buscar insumo para copiar" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por código ou descrição · use * para segmentar" className="pl-9" aria-label="Buscar insumo para copiar" />
         {searching && (
           <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-control border border-border bg-surface shadow-overlay">
             {results.isFetching && !results.data ? (

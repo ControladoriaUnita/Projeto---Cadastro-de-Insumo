@@ -1,6 +1,6 @@
 import { createRequestSchema, type CreateRequestInput, type RequestDTO } from '@shared/contracts'
 import { REQUEST_KINDS, REQUESTABLE_KINDS, URGENCIES, type Urgency } from '@shared/domain/request/kinds'
-import { Field, Input, Select, Textarea } from '@/components/ui'
+import { Field, Input, SearchSelect, Select, Textarea } from '@/components/ui'
 import { useWorks } from '../api'
 
 export type RequestFormErrors = Partial<Record<keyof CreateRequestInput, string>>
@@ -77,24 +77,21 @@ export function RequestFields({ form, errors, set }: Props) {
   )
 }
 
-/** Obras ativas no UAU; se o UAU não responder, libera digitar o nome da obra. */
+/** Obras ativas no UAU, com busca digitando; se o UAU não responder, libera digitar o nome da obra. */
 export function WorkSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const works = useWorks()
   if (works.isError) {
     return <Input value={value} onChange={(e) => onChange(e.target.value)} maxLength={160} placeholder="Não foi possível carregar as obras do UAU: digite a obra" />
   }
-  const options = works.data ?? []
-  // Solicitação antiga com obra fora da lista: mantém o valor atual
-  const known = !value || options.some((w) => w.label === value)
+  const options = (works.data ?? []).map((w) => w.label)
   return (
-    <Select value={value} onChange={(e) => onChange(e.target.value)} disabled={works.isLoading}>
-      <option value="">{works.isLoading ? 'Carregando obras do UAU…' : 'Selecione a obra'}</option>
-      {!known && <option value={value}>{value}</option>}
-      {options.map((w) => (
-        <option key={w.label} value={w.label}>
-          {w.label}
-        </option>
-      ))}
-    </Select>
+    <SearchSelect
+      value={value}
+      onChange={onChange}
+      options={options}
+      disabled={works.isLoading}
+      placeholder={works.isLoading ? 'Carregando obras do UAU…' : 'Digite para buscar a obra'}
+      aria-label="Obra"
+    />
   )
 }

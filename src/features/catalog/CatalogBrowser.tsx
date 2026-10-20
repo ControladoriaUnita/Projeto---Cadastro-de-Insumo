@@ -67,7 +67,8 @@ export function CatalogBrowser({ initialQuery = '' }: { initialQuery?: string })
                 setQ(e.target.value)
                 set({})
               }}
-              placeholder="Código ou descrição (ex.: rejunte epoxi)"
+              placeholder="Código ou descrição · use * para segmentar (ex.: janela*veneziana*0,60)"
+              title="Sem *: todas as palavras, em qualquer ordem. Com *: os trechos na ordem digitada, como no UAU."
               className="pl-9"
               aria-label="Buscar insumo"
             />

@@ -106,7 +106,7 @@ export function RequestDetailPage() {
         <Card className="self-start">
           <CardHeader title="Histórico" />
           <CardBody>
-            <RequestTimeline events={r.events} technical={can(PERMISSIONS.approvalDecide)} />
+            <RequestTimeline events={r.events} />
           </CardBody>
         </Card>
       </div>

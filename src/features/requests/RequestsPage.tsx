@@ -7,7 +7,7 @@ import { FINAL_STATUSES } from '@shared/domain/request/workflow'
 import { PERMISSIONS } from '@shared/domain/roles'
 import { PATHS } from '@/app/navigation'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { Alert, Button, Card, EmptyState, Input, KpiStrip, Select, Skeleton, Tabs } from '@/components/ui'
+import { Alert, Button, Card, EmptyState, Input, KpiStrip, SearchSelect, Skeleton, Tabs } from '@/components/ui'
 import { errorMessage } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { useRequests, useWorks } from './api'
@@ -106,14 +106,15 @@ export function RequestsPage() {
               { key: 'all', label: 'Todas', count: groups.all.length },
             ]}
             trailing={
-              <Select value={work} onChange={(e) => setWork(e.target.value)} className="w-72 max-w-full" aria-label="Filtrar por obra">
-                <option value="">Todas as obras</option>
-                {workOptions.map((w) => (
-                  <option key={w} value={w}>
-                    {w}
-                  </option>
-                ))}
-              </Select>
+              <SearchSelect
+                value={work}
+                onChange={setWork}
+                options={workOptions}
+                clearable
+                placeholder="Todas as obras · digite para buscar"
+                className="w-72 max-w-full"
+                aria-label="Filtrar por obra"
+              />
             }
           />
         </div>

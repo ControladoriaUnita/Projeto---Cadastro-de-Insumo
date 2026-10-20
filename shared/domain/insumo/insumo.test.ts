@@ -3,7 +3,8 @@ import { formatBRL, parseDecimalBR } from '../../format'
 import { fromUauRow, type CatalogItem } from './catalog'
 import { nextFreeCode } from './code'
 import { EMPTY_DRAFT, buildCatalogIndex, draftFromModel, validateDraft, type InsumoDraft } from './draft'
-import { findSimilar } from './similarity'
+import { IDENTICAL_SCORE, findSimilar } from './similarity'
+import { textMatcher, tokenize } from './text'
 import { buildConfirmBody, buildInsertBody } from './uau-payload'
 
 const item = (codigo: string, descricao: string, extra: Partial<CatalogItem> = {}): CatalogItem => ({
@@ -66,6 +67,18 @@ describe('insumos parecidos', () => {
     const [first] = findSimilar('Rejunte epóxi branco 1kg', catalog)
     expect(first).toMatchObject({ codigo: 'IM00246', score: 100 })
   })
+  it('medidas diferentes não contam como a mesma descrição', () => {
+    const items = [
+      item('IS03283', 'Confecção e instalação de guarda-corpo em vidro - h=0,60m'),
+      item('IM09615', 'Janela de alumínio veneziana fixa com ventilação permanente - 0,60×0,60m - (NBR 10821)'),
+    ]
+    const [guarda] = findSimilar('Confecção e instalação de guarda-corpo em vidro - h=1,60m', items)
+    expect(guarda?.codigo).toBe('IS03283')
+    expect(guarda?.score).toBeLessThan(IDENTICAL_SCORE)
+    const [janela] = findSimilar('Janela de alumínio veneziana fixa com ventilação permanente - 1,60×0,60m - (NBR 10821)', items)
+    expect(janela?.score).toBeLessThan(IDENTICAL_SCORE)
+    expect(findSimilar('JANELA DE ALUMINIO VENEZIANA FIXA COM VENTILACAO PERMANENTE - 0,60x0,60m - (NBR 10821)', items)[0]?.score).toBe(IDENTICAL_SCORE)
+  })
   it('não devolve nada sem palavras em comum', () => {
     expect(findSimilar('tinta acrilica', catalog)).toEqual([])
   })
@@ -89,6 +102,13 @@ describe('validação do rascunho', () => {
   it('bloqueia descrição idêntica a um insumo existente', () => {
     const v = validateDraft({ ...valid, descricao: 'rejunte epoxi branco 1kg' }, { index, reserved: new Map() })
     expect(v.errors.map((e) => e.message).join(' ')).toContain('IM00246')
+  })
+
+  it('bloqueia medição com controle por quantidade (regra do UAU)', () => {
+    const ctx = { index, reserved: new Map() }
+    const v = validateDraft({ ...valid, tipoPagamento: 1, controle: 1 }, ctx)
+    expect(v.errors.map((e) => e.field)).toContain('controle')
+    expect(validateDraft({ ...valid, tipoPagamento: 1, controle: 2 }, ctx).errors).toEqual([])
   })
 
   it('exige campos obrigatórios e avisa sobre unidade desconhecida', () => {
@@ -134,5 +154,24 @@ describe('formatação', () => {
     expect(parseDecimalBR('12,5')).toBe('12.5')
     expect(parseDecimalBR('abc')).toBeNull()
     expect(formatBRL('1234.5')).toBe('R$ 1.234,50')
+  })
+})
+
+describe('busca no estilo do UAU', () => {
+  const janela = 'IM09615 Janela de alumínio veneziana fixa - 0,60×0,60m - (NBR 10821)'
+  it('mantém números e medidas como termos', () => {
+    expect(tokenize('guarda-corpo h=1,60m')).toEqual(['guarda', 'corpo', '1.60'])
+  })
+  it('sem asterisco: todos os termos, em qualquer ordem, inclusive números', () => {
+    expect(textMatcher('veneziana janela 0,60')!(janela)).toBe(true)
+    expect(textMatcher('janela 1,60')!(janela)).toBe(false)
+  })
+  it('com asterisco: trechos na ordem digitada', () => {
+    expect(textMatcher('jan*vene*0,60x0,60')!(janela)).toBe(true)
+    expect(textMatcher('veneziana*janela')!(janela)).toBe(false)
+    expect(textMatcher('*nbr 10821')!(janela)).toBe(true)
+  })
+  it('sem nada para buscar', () => {
+    expect(textMatcher(' * ')).toBeNull()
   })
 })
