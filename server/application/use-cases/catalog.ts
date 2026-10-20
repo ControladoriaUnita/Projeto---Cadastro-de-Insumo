@@ -14,7 +14,7 @@ import { countValues, type CatalogItem } from '../../../shared/domain/insumo/cat
 import { CODE_PREFIXES, PREFIXES, normalizeCode } from '../../../shared/domain/insumo/code'
 import { buildCatalogIndex, suggestCodes, validateDraft, type DraftValidation, type InsumoDraft } from '../../../shared/domain/insumo/draft'
 import { findSimilar } from '../../../shared/domain/insumo/similarity'
-import { fold, tokenize } from '../../../shared/domain/insumo/text'
+import { fold, textMatcher, tokenize } from '../../../shared/domain/insumo/text'
 import { buildConfirmBody, buildInsertBody } from '../../../shared/domain/insumo/uau-payload'
 import { CODE_RESERVING_STATUSES } from '../../../shared/domain/request/workflow'
 import { PERMISSIONS } from '../../../shared/domain/roles'
@@ -36,7 +36,7 @@ const SORTERS: Record<CatalogQuery['sort'], (i: CatalogItem) => string> = {
 export async function searchCatalog({ uau, ctx }: UseCaseDeps, query: CatalogQuery): Promise<CatalogPageDTO> {
   requirePermission(ctx, P.catalogRead)
   const snapshot = await uau.loadCatalog({ refresh: query.refresh === '1' })
-  const words = tokenize(query.q)
+  const matches = textMatcher(query.q)
 
   const filtered = snapshot.items.filter((i) => {
     if (query.status === 'ativo' && !i.ativo) return false
@@ -44,9 +44,7 @@ export async function searchCatalog({ uau, ctx }: UseCaseDeps, query: CatalogQue
     if (query.categoria && i.categoria !== query.categoria) return false
     if (query.unidade && i.unidade !== query.unidade) return false
     if (query.grupo && String(i.grupo ?? '') !== query.grupo) return false
-    if (!words.length) return true
-    const haystack = fold(`${i.codigo} ${i.descricao}`)
-    return words.every((w) => haystack.includes(w))
+    return !matches || matches(`${i.codigo} ${i.descricao}`)
   })
 
   const key = SORTERS[query.sort]

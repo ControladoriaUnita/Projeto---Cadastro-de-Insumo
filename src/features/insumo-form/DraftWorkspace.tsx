@@ -30,7 +30,7 @@ export function DraftWorkspace({ request, editor, readOnly, notice, actions, asi
         <RequestSummary request={request} />
         <InsumoForm editor={editor} context={context.data} requestDescription={request.description} disabled={readOnly} />
       </div>
-      <div className="grid content-start gap-4 xl:sticky xl:top-[74px] xl:max-h-[calc(100vh-90px)] xl:overflow-auto">
+      <div className="grid content-start gap-4 xl:sticky xl:top-[74px] xl:max-h-[calc(100vh-90px)] xl:overflow-x-hidden xl:overflow-y-auto [&>*]:min-w-0">
         <Card className="flex flex-wrap gap-2 p-4">{actions}</Card>
         {editor.validate && (
           <ValidationPanel

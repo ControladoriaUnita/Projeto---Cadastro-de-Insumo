@@ -11,7 +11,6 @@ import { useAuth } from '@/lib/auth'
 import { formatDateTime, formatRequestNumber } from '@/utils/format'
 import { CatalogBrowser } from '@/features/catalog/CatalogBrowser'
 import { DraftWorkspace } from '@/features/insumo-form/DraftWorkspace'
-import { PayloadPreview } from '@/features/insumo-form/PayloadPreview'
 import { useDraftEditor } from '@/features/insumo-form/useDraftEditor'
 import { useApprove, useRequest, useRequestAction, useRequests, useResume } from '@/features/requests/api'
 import { CommentDialog } from '@/features/requests/components/CommentDialog'
@@ -19,7 +18,7 @@ import { RequestTimeline } from '@/features/requests/components/RequestTimeline'
 import { StatusBadge, UrgencyBadge } from '@/features/requests/components/StatusBadge'
 import { ApproveDialog } from './ApproveDialog'
 
-/** Tela da gestão: revisa e ajusta o cadastro, confere repetidos no UAU, vê o JSON e grava. */
+/** Tela da gestão: revisa e ajusta o cadastro, confere repetidos no UAU e grava. */
 export function ApprovalPage() {
   const { id = '' } = useParams()
   const request = useRequest(id)
@@ -126,7 +125,7 @@ function ApprovalWorkspace({ request }: { request: RequestDetailDTO }) {
           </Button>
           <p className="w-full text-xs text-text-muted">
             {!writeEnabled
-              ? 'Gravação no UAU desligada (simulação). Confira o JSON abaixo; para gravar, o servidor precisa de UAU_GRAVACAO=real.'
+              ? 'Gravação no UAU desligada (simulação). Para gravar, o servidor precisa de UAU_GRAVACAO=real.'
               : editor.dirty
                 ? 'Seus ajustes serão salvos e registrados no histórico ao aprovar.'
                 : 'Você pode ajustar qualquer campo antes de aprovar.'}
@@ -207,15 +206,12 @@ function ApprovalWorkspace({ request }: { request: RequestDetailDTO }) {
           readOnly={!can('save_draft')}
           actions={actions}
           aside={
-            <>
-              {editor.validate && <PayloadPreview preview={editor.preview.data} />}
-              <Card>
-                <CardHeader title="Histórico" />
-                <CardBody>
-                  <RequestTimeline events={request.events} technical />
-                </CardBody>
-              </Card>
-            </>
+            <Card>
+              <CardHeader title="Histórico" />
+              <CardBody>
+                <RequestTimeline events={request.events} />
+              </CardBody>
+            </Card>
           }
         />
       )}

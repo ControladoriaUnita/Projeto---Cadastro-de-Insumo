@@ -165,6 +165,10 @@ export function validateDraft(raw: InsumoDraft, { index, reserved }: ValidationC
   else if (!(d.grupo in GROUPS)) error('grupo', 'Grupo inválido.')
   if (d.controle !== null && !(d.controle in CONTROLS)) error('controle', 'Controle inválido.')
   if (d.tipoPagamento !== null && !(d.tipoPagamento in PAYMENT_TYPES)) error('tipoPagamento', 'Tipo de pagamento inválido.')
+  // Regra do UAU: "Insumo com o tipo 1 - Medição não pode ter o tipo de controle 1 - Qtde."
+  if (d.tipoPagamento === 1 && d.controle === 1) {
+    error('controle', 'Com tipo de pagamento Medição, o UAU não aceita controle por quantidade. Use "Por verba" ou troque o tipo de pagamento.')
+  }
   if (d.controlaEstoque !== null && d.controlaEstoque !== 0 && d.controlaEstoque !== 1) error('controlaEstoque', 'Valor inválido.')
 
   const usual = prefix ? PREFIXES[prefix].usualGroups : []
