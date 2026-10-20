@@ -6,6 +6,9 @@ import { PERMISSIONS, type Permission, type RoleKey } from '@shared/domain/roles
 export const PATHS = {
   newRequest: '/solicitacoes/nova',
   requests: '/solicitacoes',
+  instructions: '/instrucoes',
+  /** Manual em slides, um por página, para gerar o PDF */
+  manualPrint: '/manual',
   request: (id: string) => `/solicitacoes/${id}`,
   drafting: '/cadastro',
   draft: (id: string) => `/cadastro/${id}`,
@@ -25,6 +28,7 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { to: PATHS.newRequest, label: 'Solicitar insumo', permission: PERMISSIONS.requestCreate },
+  { to: PATHS.instructions, label: 'Instruções', permission: PERMISSIONS.requestCreate },
   { to: PATHS.requests, label: 'Acompanhamento', permission: PERMISSIONS.requestReadOwn, end: true },
   { to: PATHS.drafting, label: 'Cadastro', permission: PERMISSIONS.draftEdit },
   { to: PATHS.approval, label: 'Aprovação', permission: PERMISSIONS.approvalDecide },
