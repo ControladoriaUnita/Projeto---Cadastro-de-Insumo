@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Hash, Plus, Search, UserRound, X } from 'lucide-react'
 import type { RequestDTO } from '@shared/contracts'
-import { fold } from '@shared/domain/insumo/text'
+import { fold, textMatcher } from '@shared/domain/insumo/text'
 import { FINAL_STATUSES } from '@shared/domain/request/workflow'
 import { PERMISSIONS } from '@shared/domain/roles'
 import { PATHS } from '@/app/navigation'
@@ -25,12 +25,12 @@ interface RequestSearch {
 
 const NO_SEARCH: RequestSearch = { number: '', text: '', requester: '' }
 
-/** Busca sem acento e sem diferenciar maiúsculas. */
+/** Busca sem acento e sem diferenciar maiúsculas; a descrição aceita * como no UAU. */
 function matchesSearch(r: RequestDTO, s: RequestSearch): boolean {
   const digits = s.number.replace(/\D/g, '')
   if (digits && r.number !== Number(digits)) return false
-  const text = fold(s.text.trim())
-  if (text && !fold([r.description, r.draft?.descricao, r.draft?.codigo, r.uauCode].filter(Boolean).join(' ')).includes(text)) return false
+  const matches = textMatcher(s.text)
+  if (matches && !matches([r.description, r.draft?.descricao, r.draft?.codigo, r.uauCode].filter(Boolean).join(' '))) return false
   const requester = fold(s.requester.trim())
   if (requester && !fold(r.requester.name).includes(requester)) return false
   return true
@@ -135,7 +135,7 @@ export function RequestsPage() {
             <Input
               value={search.text}
               onChange={(e) => setSearch((s) => ({ ...s, text: e.target.value }))}
-              placeholder="Descrição do insumo ou código"
+              placeholder="Descrição ou código · use * para segmentar"
               className="pl-9"
               aria-label="Buscar pela descrição do insumo"
             />
