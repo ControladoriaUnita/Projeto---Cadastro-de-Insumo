@@ -15,6 +15,8 @@ import { CatalogPage } from '@/features/catalog/CatalogPage'
 import { IntegrationPage } from '@/features/integration/IntegrationPage'
 import { DraftPage } from '@/features/drafting/DraftPage'
 import { DraftQueuePage } from '@/features/drafting/DraftQueuePage'
+import { InstructionsPage } from '@/features/instructions/InstructionsPage'
+import { ManualPrintPage } from '@/features/instructions/ManualPrintPage'
 import { NewRequestPage } from '@/features/requests/NewRequestPage'
 import { RequestDetailPage } from '@/features/requests/RequestDetailPage'
 import { RequestsPage } from '@/features/requests/RequestsPage'
@@ -64,10 +66,12 @@ export function App() {
       <Route path="/entrar" element={<LoginPage />} />
       <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
       <Route path="/solicitar-acesso" element={<RequestAccessPage />} />
+      <Route path={PATHS.manualPrint} element={<ManualPrintPage />} />
       <Route element={<Protected />}>
         <Route index element={<Home />} />
         {/* Obra */}
         <Route path={PATHS.newRequest} element={guard([P.requestCreate], <NewRequestPage />)} />
+        <Route path={PATHS.instructions} element={guard([P.requestCreate], <InstructionsPage />)} />
         <Route path={PATHS.requests} element={guard([P.requestReadOwn, P.requestReadAll], <RequestsPage />)} />
         <Route path="/solicitacoes/:id" element={guard([P.requestReadOwn, P.requestReadAll], <RequestDetailPage />)} />
         {/* Analista */}

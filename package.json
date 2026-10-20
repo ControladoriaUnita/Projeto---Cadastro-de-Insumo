@@ -16,7 +16,8 @@
     "lint:hex": "node scripts/check-hex.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check": "npm run typecheck && npm run lint:hex && npm test",
-    "check:supabase": "node scripts/check-supabase.mjs"
+    "check:supabase": "node scripts/check-supabase.mjs",
+    "manual:pdf": "node scripts/build-manual-pdf.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
