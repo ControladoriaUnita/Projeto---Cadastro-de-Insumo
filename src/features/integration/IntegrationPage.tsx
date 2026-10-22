@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, RefreshCw, XCircle } from 'lucide-react'
-import type { IntegrationStatusDTO, UauCheckStep } from '@shared/contracts'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { CheckCircle2, Mail, RefreshCw, XCircle } from 'lucide-react'
+import type { IntegrationStatusDTO, TestEmailResultDTO, UauCheckStep } from '@shared/contracts'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Alert, Badge, Button, Card, CardHeader, KpiStrip, Skeleton } from '@/components/ui'
 import { api, errorMessage } from '@/lib/api'
@@ -48,7 +48,12 @@ export function IntegrationPage() {
         <div className="grid gap-4">
           <KpiStrip
             items={[
-              { label: 'UAU', value: data.uauMode === 'real' ? 'Real' : 'Simulado', tone: data.uauMode === 'real' ? 'success' : 'warning', hint: data.uau.host ?? undefined },
+              {
+                label: 'UAU',
+                value: data.uauMode === 'real' ? 'Real' : 'Simulado',
+                tone: data.uauMode === 'real' ? 'success' : 'warning',
+                hint: data.uau.host ?? undefined,
+              },
               { label: 'Gravação no UAU', value: data.uauWriteEnabled ? 'Ligada' : 'Simulação' },
               { label: 'Aviso por e-mail', value: EMAIL_LABELS[data.emailProvider] },
               {
@@ -72,16 +77,18 @@ export function IntegrationPage() {
             </ul>
           </Card>
 
+          <EmailTestCard provider={data.emailProvider} />
+
           {!allOk && (
             <Alert tone="warning" title="O que verificar">
               <ul className="mt-1 list-disc space-y-1 pl-5">
                 <li>
-                  <strong>Login recusado:</strong> confira na Vercel <code>UAU_LOGIN</code>, <code>UAU_PASSWORD</code> e <code>UAU_INTEGRATION_TOKEN</code>. Cole o
-                  valor exato, sem aspas em volta, e faça Redeploy.
+                  <strong>Login recusado:</strong> confira na Vercel <code>UAU_LOGIN</code>, <code>UAU_PASSWORD</code> e <code>UAU_INTEGRATION_TOKEN</code>.
+                  Cole o valor exato, sem aspas em volta, e faça Redeploy.
                 </li>
                 <li>
-                  <strong>Sem conexão / tempo esgotado:</strong> o servidor do UAU pode aceitar só IPs liberados. Peça à Senior/Globaltec para liberar o acesso a
-                  partir da Vercel.
+                  <strong>Sem conexão / tempo esgotado:</strong> o servidor do UAU pode aceitar só IPs liberados. Peça à Senior/Globaltec para liberar o acesso
+                  a partir da Vercel.
                 </li>
                 <li>
                   <strong>Lentidão:</strong> o UAU pode estar sobrecarregado; teste de novo em alguns minutos.
@@ -92,6 +99,39 @@ export function IntegrationPage() {
         </div>
       ) : null}
     </>
+  )
+}
+
+/** Manda um e-mail de teste para quem está logado e mostra o resultado (ou o erro do Microsoft 365). */
+function EmailTestCard({ provider }: { provider: IntegrationStatusDTO['emailProvider'] }) {
+  const test = useMutation({ mutationFn: () => api<TestEmailResultDTO>('/integration/test-email', { method: 'POST' }) })
+  return (
+    <Card>
+      <CardHeader
+        title="Teste de e-mail"
+        description="Envia um e-mail de teste para você, pelo mesmo caminho dos avisos de aprovação e de ajuste."
+        actions={
+          <Button icon={<Mail className="size-4" />} loading={test.isPending} disabled={provider === 'none'} onClick={() => test.mutate()}>
+            Enviar e-mail de teste
+          </Button>
+        }
+      />
+      <div className="px-5 py-4">
+        {test.isSuccess ? (
+          <Alert tone="success">
+            {test.data.provider === 'graph'
+              ? `E-mail enviado para ${test.data.to}. Confira a caixa de entrada (e a pasta de spam).`
+              : `Teste registrado só no log do servidor (EMAIL_PROVIDER=${test.data.provider}): nenhum e-mail sai. Para envio real, use EMAIL_PROVIDER=graph.`}
+          </Alert>
+        ) : test.isError ? (
+          <Alert tone="error">{errorMessage(test.error)}</Alert>
+        ) : (
+          <p className="text-sm text-text-muted">
+            {provider === 'none' ? 'O aviso por e-mail está desligado (EMAIL_PROVIDER=none).' : 'Nenhum teste enviado ainda.'}
+          </p>
+        )}
+      </div>
+    </Card>
   )
 }
 

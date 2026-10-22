@@ -22,7 +22,7 @@ import { AppError, toAppError, type Actor, type RequestContext } from '../applic
 import type { UseCaseDeps } from '../application/ports'
 import { submitAccessRequest } from '../application/use-cases/access-requests'
 import * as catalog from '../application/use-cases/catalog'
-import { checkIntegration } from '../application/use-cases/integration'
+import { checkIntegration, sendTestEmail } from '../application/use-cases/integration'
 import * as requests from '../application/use-cases/requests'
 import { listWorks } from '../application/use-cases/works'
 import { authConfig, corporateDomains, dataSource, demoUsers, openSession, publicRepositories } from '../infrastructure/session'
@@ -101,6 +101,7 @@ route('GET', '/catalog/items/:codigo', async ({ deps, params }) => catalog.getCa
 
 // ----------------------------------------------------------------------------- integração
 route('GET', '/integration/uau', async ({ deps }) => checkIntegration(deps, { emailProvider: emailProvider() }))
+route('POST', '/integration/test-email', async ({ deps }) => sendTestEmail(deps, { emailProvider: emailProvider() }))
 
 // ----------------------------------------------------------------------------- dispatcher
 function json(data: unknown, status: number, correlationId: string) {

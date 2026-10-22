@@ -86,6 +86,12 @@ export interface IntegrationStatusDTO {
   uau: UauConnectionCheck
 }
 
+export interface TestEmailResultDTO {
+  /** Para onde o teste foi enviado (e-mail de quem está logado) */
+  to: string
+  provider: 'none' | 'log' | 'graph'
+}
+
 export interface AppConfigDTO {
   dataSource: 'memory' | 'supabase'
   /** mock = catálogo de exemplo; real = API UAU */
