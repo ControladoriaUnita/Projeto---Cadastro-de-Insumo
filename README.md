@@ -66,6 +66,8 @@ A regra de quem pode o quê está em **um lugar só**: [`shared/domain/roles.ts`
 
 Devolver e recusar exigem motivo, que aparece para a obra. Cada passo fica no **histórico** (append-only), incluindo o JSON enviado e a resposta do UAU.
 
+**Prazo:** são 3 dias corridos da abertura da solicitação até a aprovação (`aprovado`), deduzidos do histórico (`shared/domain/request/deadline.ts`). Só a devolução à obra (`requer_ajuste`) mexe no prazo: enquanto a obra corrige, a contagem fica pausada ("Com a obra") e recomeça do zero quando ela reenviar. Enviar para aprovação e a gestão devolver ao analista não zeram o prazo; recusar ou cancelar encerram a contagem.
+
 ### Vários insumos de uma vez
 
 Na tela **Solicitar insumo**, a obra informa a obra uma vez e adiciona quantos insumos precisar (até 100 por envio):
