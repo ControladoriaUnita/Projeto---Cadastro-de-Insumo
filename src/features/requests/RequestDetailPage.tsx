@@ -106,9 +106,9 @@ export function RequestDetailPage() {
 
         <div className="grid content-start gap-4">
           <Card>
-            <CardHeader title="Prazos" />
+            <CardHeader title="Prazo" />
             <CardBody>
-              <DeadlinePanel deadlines={r.deadlines} />
+              <DeadlinePanel deadline={r.deadline} />
             </CardBody>
           </Card>
           <Card>

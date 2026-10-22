@@ -1,36 +1,30 @@
 /**
- * Prazo das etapas de cadastro (analista) e de aprovação (gestão), deduzido do histórico.
+ * Prazo da solicitação, deduzido do histórico: 3 dias corridos da abertura até a aprovação.
  *
- * Cada etapa tem 3 dias contados de forma independente, a partir da última interação válida dela:
+ *   começa     na abertura (`created`);
+ *   pausa      quando o analista devolve à obra (`request_adjustment`): o tempo com a obra não conta;
+ *   reinicia   quando a obra reenvia (`resubmit`): mais 3 dias a partir do reenvio;
+ *   termina    ao aprovar (`approve`). Se o UAU recusar a inserção, volta a contar sem reiniciar.
  *
- *   cadastro   começa na abertura (`created`) e reinicia quando o analista devolve à obra
- *              (`request_adjustment`); termina ao enviar para aprovação (`submit`).
- *   aprovação  começa no primeiro envio (`submit`) e reinicia quando a gestão devolve ao analista
- *              (`return`); termina ao aprovar (`approve`). Se o UAU recusar a inserção, a etapa
- *              volta a contar sem reiniciar.
- *
- * Uma interação de uma etapa nunca mexe no prazo da outra. Recusar ou cancelar encerra a etapa
- * em andamento.
+ * Enviar para aprovação (`submit`) e a gestão devolver ao analista (`return`) não mexem no prazo.
+ * Recusar ou cancelar encerra a contagem.
  */
 import type { RequestEventType } from './workflow'
 
-export const STAGE_DEADLINE_DAYS = 3
+export const REQUEST_DEADLINE_DAYS = 3
 const DAY_MS = 24 * 60 * 60 * 1000
 
-export type DeadlineStage = 'cadastro' | 'aprovacao'
-export type DeadlineState = 'dentro_do_prazo' | 'vencido' | 'concluido'
+export type DeadlineState = 'dentro_do_prazo' | 'vencido' | 'aguardando_obra' | 'concluido'
 
-export interface StageDeadline {
+export interface RequestDeadline {
   state: DeadlineState
-  /** Última interação válida (início da contagem) */
+  /** Início da contagem: abertura, último reenvio da obra ou, em `aguardando_obra`, a devolução */
   startedAt: string
-  dueAt: string
-  /** Quando a etapa terminou (só em `concluido`) */
+  /** null em `aguardando_obra` (o prazo só volta a existir quando a obra reenviar) */
+  dueAt: string | null
+  /** Quando a contagem terminou (só em `concluido`) */
   doneAt: string | null
 }
-
-/** null = a etapa ainda não começou (ou nunca vai começar) */
-export type RequestDeadlines = Record<DeadlineStage, StageDeadline | null>
 
 /** O mínimo do evento que a regra precisa. */
 export interface DeadlineEvent {
@@ -38,51 +32,49 @@ export interface DeadlineEvent {
   type: RequestEventType
 }
 
-/** Eventos que mexem em algum prazo (o resto do histórico é ignorado). */
-export const DEADLINE_EVENT_TYPES: readonly RequestEventType[] = ['created', 'request_adjustment', 'submit', 'return', 'approve', 'uau_insert_failed', 'reject', 'cancel']
+/** Eventos que mexem no prazo (o resto do histórico é ignorado). */
+export const DEADLINE_EVENT_TYPES: readonly RequestEventType[] = ['created', 'request_adjustment', 'resubmit', 'approve', 'uau_insert_failed', 'reject', 'cancel']
 
 interface Clock {
   startedAt: string
+  paused: boolean
   doneAt: string | null
 }
 
 const addDays = (iso: string, days: number) => new Date(Date.parse(iso) + days * DAY_MS).toISOString()
 
-function evaluate(clock: Clock | null, now: Date): StageDeadline | null {
-  if (!clock) return null
-  const dueAt = addDays(clock.startedAt, STAGE_DEADLINE_DAYS)
-  const state: DeadlineState = clock.doneAt ? 'concluido' : now.getTime() > Date.parse(dueAt) ? 'vencido' : 'dentro_do_prazo'
-  return { state, startedAt: clock.startedAt, dueAt, doneAt: clock.doneAt }
-}
-
-export function computeDeadlines(events: readonly DeadlineEvent[], now: Date): RequestDeadlines {
-  let cadastro: Clock | null = null
-  let aprovacao: Clock | null = null
+/** null = sem abertura no histórico */
+export function computeDeadline(events: readonly DeadlineEvent[], now: Date): RequestDeadline | null {
+  let clock: Clock | null = null
   const sorted = [...events].sort((a, b) => a.at.localeCompare(b.at))
   for (const e of sorted) {
+    if (e.type === 'created') {
+      clock = { startedAt: e.at, paused: false, doneAt: null }
+      continue
+    }
+    if (!clock) continue
     switch (e.type) {
-      case 'created':
       case 'request_adjustment':
-        cadastro = { startedAt: e.at, doneAt: null }
+        if (!clock.doneAt) clock = { startedAt: e.at, paused: true, doneAt: null }
         break
-      case 'submit':
-        if (cadastro && !cadastro.doneAt) cadastro.doneAt = e.at
-        if (!aprovacao) aprovacao = { startedAt: e.at, doneAt: null }
-        break
-      case 'return':
-        aprovacao = { startedAt: e.at, doneAt: null }
+      case 'resubmit':
+        if (!clock.doneAt) clock = { startedAt: e.at, paused: false, doneAt: null }
         break
       case 'approve':
-        if (aprovacao) aprovacao.doneAt = e.at
+        if (!clock.doneAt) clock.doneAt = e.at
         break
       case 'uau_insert_failed':
-        if (aprovacao) aprovacao.doneAt = null
+        clock.doneAt = null
         break
       case 'reject':
       case 'cancel':
-        for (const clock of [cadastro, aprovacao]) if (clock && !clock.doneAt) clock.doneAt = e.at
+        if (!clock.doneAt) clock.doneAt = e.at
         break
     }
   }
-  return { cadastro: evaluate(cadastro, now), aprovacao: evaluate(aprovacao, now) }
+  if (!clock) return null
+  if (clock.paused && !clock.doneAt) return { state: 'aguardando_obra', startedAt: clock.startedAt, dueAt: null, doneAt: null }
+  const dueAt = addDays(clock.startedAt, REQUEST_DEADLINE_DAYS)
+  const state: DeadlineState = clock.doneAt ? 'concluido' : now.getTime() > Date.parse(dueAt) ? 'vencido' : 'dentro_do_prazo'
+  return { state, startedAt: clock.startedAt, dueAt, doneAt: clock.doneAt }
 }
