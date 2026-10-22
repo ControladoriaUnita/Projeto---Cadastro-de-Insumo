@@ -9,6 +9,7 @@ import type { SimilarItem } from '../domain/insumo/similarity'
 import type { UauConfirmBody, UauInsertBody } from '../domain/insumo/uau-payload'
 import { REQUESTABLE_KINDS, type RequestKind, type Urgency } from '../domain/request/kinds'
 import { MAX_BATCH_ITEMS } from '../domain/request/spreadsheet'
+import type { RequestDeadlines } from '../domain/request/deadline'
 import type { RequestAction, RequestEventType, RequestStatus } from '../domain/request/workflow'
 import type { RoleKey } from '../domain/roles'
 
@@ -149,6 +150,8 @@ export interface RequestDTO {
   updatedAt: string
   /** Ações que o usuário atual pode fazer agora */
   actions: RequestAction[]
+  /** Prazo de cada etapa (cadastro e aprovação), deduzido do histórico */
+  deadlines: RequestDeadlines
 }
 
 export interface RequestDetailDTO extends RequestDTO {

@@ -1,6 +1,7 @@
 /**
  * Como cada situação aparece na tela (rótulo, cor e texto para a obra).
  */
+import type { DeadlineStage, DeadlineState } from '@shared/domain/request/deadline'
 import type { RequestEventType, RequestStatus } from '@shared/domain/request/workflow'
 import type { Tone } from '@/components/ui'
 
@@ -50,3 +51,11 @@ export const EVENT_LABELS: Record<RequestEventType, string> = {
 
 const FAILURES: RequestEventType[] = ['uau_insert_failed', 'uau_confirm_failed', 'reject', 'email_failed']
 export const isFailureEvent = (t: RequestEventType) => FAILURES.includes(t)
+
+export const DEADLINE_STAGE_LABELS: Record<DeadlineStage, string> = { cadastro: 'Cadastro', aprovacao: 'Aprovação' }
+
+export const DEADLINE_META: Record<DeadlineState, { label: string; tone: Tone }> = {
+  dentro_do_prazo: { label: 'Dentro do prazo', tone: 'success' },
+  vencido: { label: 'Prazo vencido', tone: 'error' },
+  concluido: { label: 'Concluído', tone: 'neutral' },
+}

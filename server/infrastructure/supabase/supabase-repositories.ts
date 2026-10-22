@@ -36,6 +36,9 @@ const REQUEST_COLUMNS: Record<keyof RequestRecord, string> = {
 
 type DbRow = Record<string, unknown>
 
+/** Quantas solicitações por consulta ao buscar eventos em lote */
+const EVENT_BATCH = 100
+
 // Obra sem login não tem perfil: no banco o solicitante (e o autor do evento) fica vazio
 const toDbPerson = (id: string | null) => (id === GUEST_OBRA_ID ? null : id)
 
@@ -153,6 +156,15 @@ export function createSupabaseRepositories(db: SupabaseClient): Repositories {
       async listEvents(requestId) {
         const rows = check(await db.from('insumo_request_events').select('*').eq('request_id', requestId).order('at')) as DbRow[]
         return rows.map(eventFromDb)
+      },
+      async listEventsOf(requestIds, types) {
+        // Em lotes: a lista de ids vai na URL da consulta
+        const rows: DbRow[] = []
+        for (let i = 0; i < requestIds.length; i += EVENT_BATCH) {
+          const ids = requestIds.slice(i, i + EVENT_BATCH)
+          rows.push(...(check(await db.from('insumo_request_events').select('*').in('request_id', ids).in('type', [...types]).order('at')) as DbRow[]))
+        }
+        return rows.map(eventFromDb).sort((a, b) => a.at.localeCompare(b.at))
       },
     },
   }
