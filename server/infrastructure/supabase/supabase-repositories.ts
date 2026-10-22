@@ -21,6 +21,7 @@ const REQUEST_COLUMNS: Record<keyof RequestRecord, string> = {
   justification: 'justification',
   requesterId: 'requester_id',
   requesterName: 'requester_name',
+  requesterEmail: 'requester_email',
   analystId: 'analyst_id',
   analystName: 'analyst_name',
   approverId: 'approver_id',

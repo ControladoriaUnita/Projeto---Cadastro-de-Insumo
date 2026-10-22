@@ -3,23 +3,34 @@ import { formatDateTime } from '@/utils/format'
 import { cn } from '@/utils/cn'
 import { EVENT_LABELS, isFailureEvent } from '../status'
 
+/** Destinatários de um aviso por e-mail (details.to), para mostrar no histórico. */
+function emailRecipients(e: RequestEventDTO): string | null {
+  if (e.type !== 'email_sent' && e.type !== 'email_failed') return null
+  const to = (e.details as { to?: unknown } | null)?.to
+  return Array.isArray(to) && to.length ? to.join(', ') : null
+}
+
 /** Histórico da solicitação. */
 export function RequestTimeline({ events }: { events: RequestEventDTO[] }) {
   return (
     <ol className="relative grid gap-4 border-l border-border pl-5">
-      {events.map((e) => (
-        <li key={e.id} className="relative min-w-0">
-          <span
-            aria-hidden
-            className={cn('absolute top-1.5 -left-[25px] size-2.5 rounded-full ring-4 ring-surface', isFailureEvent(e.type) ? 'bg-error' : 'bg-primary')}
-          />
-          <p className="text-sm font-medium text-text">{EVENT_LABELS[e.type]}</p>
-          <p className="text-xs text-text-muted">
-            {formatDateTime(e.at)} · {e.actorName}
-          </p>
-          {e.comment && <p className="mt-1 rounded-control bg-ink-50 px-3 py-2 text-sm break-words text-ink-700">{e.comment}</p>}
-        </li>
-      ))}
+      {events.map((e) => {
+        const recipients = emailRecipients(e)
+        return (
+          <li key={e.id} className="relative min-w-0">
+            <span
+              aria-hidden
+              className={cn('absolute top-1.5 -left-[25px] size-2.5 rounded-full ring-4 ring-surface', isFailureEvent(e.type) ? 'bg-error' : 'bg-primary')}
+            />
+            <p className="text-sm font-medium text-text">{EVENT_LABELS[e.type]}</p>
+            <p className="text-xs text-text-muted">
+              {formatDateTime(e.at)} · {e.actorName}
+            </p>
+            {recipients && <p className="text-xs break-words text-text-muted">Para {recipients}</p>}
+            {e.comment && <p className="mt-1 rounded-control bg-ink-50 px-3 py-2 text-sm break-words text-ink-700">{e.comment}</p>}
+          </li>
+        )
+      })}
     </ol>
   )
 }

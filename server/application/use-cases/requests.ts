@@ -26,7 +26,7 @@ import { PERMISSIONS } from '../../../shared/domain/roles'
 import { AppError, can, notFound, requirePermission, type Actor } from '../context'
 import type { EventRecord, RequestPatch, RequestRecord, UseCaseDeps } from '../ports'
 import { reservedCodes, validateAgainstCatalog } from './catalog'
-import { notifyApproved } from './notifications'
+import { notifyAdjustmentRequested, notifyApproved } from './notifications'
 
 const P = PERMISSIONS
 
@@ -46,6 +46,7 @@ function toDTO(r: RequestRecord, actor: Actor, events: readonly DeadlineEvent[],
     specification: r.specification,
     justification: r.justification,
     requester: { id: r.requesterId, name: r.requesterName },
+    requesterEmail: r.requesterEmail,
     analyst: person(r.analystId, r.analystName),
     approver: person(r.approverId, r.approverName),
     draft: r.draft,
@@ -181,6 +182,7 @@ const requestFields = (input: CreateRequestInput) => ({
   specification: input.specification,
   justification: input.justification,
   requesterName: input.requesterName,
+  requesterEmail: input.requesterEmail,
 })
 
 async function insertRequest(deps: UseCaseDeps, input: CreateRequestInput, details: unknown = null): Promise<RequestRecord> {
@@ -292,7 +294,9 @@ export async function submitForApproval(deps: UseCaseDeps, id: string): Promise<
 /** Devolve à obra com o que precisa ser ajustado (situação "requer ajuste"). */
 export async function requestAdjustment(deps: UseCaseDeps, id: string, comment: string): Promise<RequestDetailDTO> {
   const r = await load(deps, id)
-  return detail(deps, await transition(deps, r, 'request_adjustment', 'requer_ajuste', { comment, patch: { lastComment: comment } }))
+  const updated = await transition(deps, r, 'request_adjustment', 'requer_ajuste', { comment, patch: { lastComment: comment } })
+  await notifyAdjustmentRequested(deps, updated, comment)
+  return detail(deps, updated)
 }
 
 export async function rejectRequest(deps: UseCaseDeps, id: string, comment: string): Promise<RequestDetailDTO> {

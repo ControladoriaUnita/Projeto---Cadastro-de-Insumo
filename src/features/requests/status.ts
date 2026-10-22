@@ -43,7 +43,7 @@ export const EVENT_LABELS: Record<RequestEventType, string> = {
   uau_confirmed: 'Situação confirmada no UAU',
   uau_confirm_failed: 'Falha ao confirmar no UAU',
   uau_already_present: 'Insumo já estava no UAU',
-  email_sent: 'Aviso de aprovação enviado por e-mail',
+  email_sent: 'Aviso enviado por e-mail',
   email_failed: 'Falha ao enviar o aviso por e-mail',
   request_adjustment: 'Devolvido à obra para ajuste',
   resubmit: 'Solicitação ajustada e reenviada',

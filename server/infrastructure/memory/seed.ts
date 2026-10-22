@@ -45,7 +45,7 @@ interface SeedRequest {
   steps: SeedStep[]
 }
 
-const base = (requester: Actor) => ({ requesterId: requester.id, requesterName: requester.fullName, workName: requester.workName ?? '' })
+const base = (requester: Actor) => ({ requesterId: requester.id, requesterName: requester.fullName, requesterEmail: requester.email, workName: requester.workName ?? '' })
 
 const SEED: SeedRequest[] = [
   {

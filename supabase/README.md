@@ -21,6 +21,8 @@ No painel do Supabase: **SQL Editor → New query**, cole o conteúdo de cada ar
 |---|---|
 | `001_initial_schema.sql` | perfis, solicitações e histórico |
 | `002_access_requests.sql` | pedidos de acesso e criação automática do perfil aprovado |
+| `003_obra_sem_login_e_ajuste.sql` | obra solicita sem login; situação "requer ajuste" |
+| `004_email_do_solicitante.sql` | e-mail do solicitante (recebe os avisos de aprovação e de ajuste) |
 
 **Importante:** desligue o cadastro aberto em **Authentication → Sign In / Providers →
 "Allow new users to sign up"**. Só a gestão cria usuários (passo 2).
