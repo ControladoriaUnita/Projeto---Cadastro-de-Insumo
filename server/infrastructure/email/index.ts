@@ -5,12 +5,14 @@
  *   graph → envio real pelo Microsoft 365
  */
 import { AppError } from '../../application/context'
-import { envOption } from '../env'
+import { envOption, envValue } from '../env'
 import type { Mailer } from '../../application/ports'
 import { GraphMailer } from './graph-mailer'
 import { DisabledMailer, LogMailer } from './log-mailer'
 
 let instance: Mailer | null = null
+
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const list = (v: string | undefined) =>
   (v ?? '')
@@ -34,14 +36,29 @@ export function getMailer(env: NodeJS.ProcessEnv = process.env): Mailer {
     case 'log':
       return (instance = new LogMailer(appUrl, approvalCc))
     case 'graph': {
-      const required = ['GRAPH_TENANT_ID', 'GRAPH_CLIENT_ID', 'GRAPH_CLIENT_SECRET', 'EMAIL_SENDER'] as const
-      const missing = required.filter((k) => !env[k])
+      // Sem espaços nem aspas em volta (erro comum ao colar no painel da Vercel)
+      const config = {
+        tenantId: envValue('GRAPH_TENANT_ID', env),
+        clientId: envValue('GRAPH_CLIENT_ID', env),
+        clientSecret: envValue('GRAPH_CLIENT_SECRET', env),
+        sender: envValue('EMAIL_SENDER', env),
+      }
+      const names = { tenantId: 'GRAPH_TENANT_ID', clientId: 'GRAPH_CLIENT_ID', clientSecret: 'GRAPH_CLIENT_SECRET', sender: 'EMAIL_SENDER' } as const
+      const missing = (Object.keys(names) as (keyof typeof names)[]).filter((k) => !config[k]).map((k) => names[k])
       if (missing.length) throw new AppError('EMAIL_NOT_CONFIGURED', `E-mail sem configuração no servidor: ${missing.join(', ')}.`, 503)
+      // O "ID do segredo" do Entra ID é um GUID; o Valor do segredo não é
+      if (GUID.test(config.clientSecret!)) {
+        throw new AppError(
+          'EMAIL_NOT_CONFIGURED',
+          'GRAPH_CLIENT_SECRET está com o "ID do segredo" (formato xxxxxxxx-xxxx-…). Use a coluna "Valor", que só aparece ao criar o segredo no Entra ID.',
+          503,
+        )
+      }
       return (instance = new GraphMailer({
-        tenantId: env.GRAPH_TENANT_ID!,
-        clientId: env.GRAPH_CLIENT_ID!,
-        clientSecret: env.GRAPH_CLIENT_SECRET!,
-        sender: env.EMAIL_SENDER!,
+        tenantId: config.tenantId!,
+        clientId: config.clientId!,
+        clientSecret: config.clientSecret!,
+        sender: config.sender!,
         appUrl,
         approvalCc,
       }))
