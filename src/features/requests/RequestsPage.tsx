@@ -176,7 +176,7 @@ export function RequestsPage() {
         ) : rows.length ? (
           <RequestsTable
             rows={rows}
-            columns={seesAll ? ['number', 'description', 'work', 'requester', 'status', 'deadlines', 'updated'] : ['number', 'description', 'status', 'deadlines', 'created', 'updated']}
+            columns={seesAll ? ['number', 'description', 'work', 'requester', 'status', 'deadline', 'updated'] : ['number', 'description', 'status', 'deadline', 'created', 'updated']}
             linkTo={(r) => PATHS.request(r.id)}
           />
         ) : (

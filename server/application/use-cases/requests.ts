@@ -11,7 +11,7 @@ import { normalizeCode, nextFreeCode } from '../../../shared/domain/insumo/code'
 import { EMPTY_DRAFT, normalizeDraft, type DraftField, type InsumoDraft } from '../../../shared/domain/insumo/draft'
 import { buildConfirmBody, buildInsertBody } from '../../../shared/domain/insumo/uau-payload'
 import { REQUEST_KINDS } from '../../../shared/domain/request/kinds'
-import { DEADLINE_EVENT_TYPES, computeDeadlines, type DeadlineEvent } from '../../../shared/domain/request/deadline'
+import { DEADLINE_EVENT_TYPES, computeDeadline, type DeadlineEvent } from '../../../shared/domain/request/deadline'
 import {
   APPROVAL_QUEUE,
   DRAFTING_QUEUE,
@@ -57,7 +57,7 @@ function toDTO(r: RequestRecord, actor: Actor, events: readonly DeadlineEvent[],
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
     actions: availableActions(r, actor),
-    deadlines: computeDeadlines(events, now),
+    deadline: computeDeadline(events, now),
   }
 }
 

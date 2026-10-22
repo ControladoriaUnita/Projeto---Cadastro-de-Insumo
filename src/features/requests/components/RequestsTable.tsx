@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { RequestDTO } from '@shared/contracts'
 import { cn } from '@/utils/cn'
 import { formatDateTime, formatRequestNumber } from '@/utils/format'
-import { DeadlineBadge, DeadlineList } from './DeadlineBadge'
+import { DeadlineBadge } from './DeadlineBadge'
 import { StatusBadge, UrgencyBadge } from './StatusBadge'
 
 interface Column {
@@ -36,9 +36,7 @@ const COLUMNS = {
       </div>
     ),
   },
-  draftDeadline: { label: 'Prazo do cadastro', render: (r) => <DeadlineBadge stage="cadastro" deadline={r.deadlines.cadastro} /> },
-  approvalDeadline: { label: 'Prazo da aprovação', render: (r) => <DeadlineBadge stage="aprovacao" deadline={r.deadlines.aprovacao} /> },
-  deadlines: { label: 'Prazos', render: (r) => <DeadlineList deadlines={r.deadlines} /> },
+  deadline: { label: 'Prazo', render: (r) => <DeadlineBadge deadline={r.deadline} /> },
   updated: { label: 'Atualizada', render: (r) => formatDateTime(r.updatedAt), align: 'right', className: 'tabular whitespace-nowrap text-text-muted' },
   created: { label: 'Aberta em', render: (r) => formatDateTime(r.createdAt), align: 'right', className: 'tabular whitespace-nowrap text-text-muted' },
 } satisfies Record<string, Column>
