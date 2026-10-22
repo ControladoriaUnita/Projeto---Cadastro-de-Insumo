@@ -445,6 +445,18 @@ describe('aviso por e-mail', () => {
     expect(r.data.events.at(-1)).toMatchObject({ type: 'email_failed', details: { to: ['carla.mendes@unitaengenharia.com.br'] } })
   })
 
+  it('teste de e-mail vai para quem está logado; só a gestão pode e o erro do envio aparece', async () => {
+    expect((await call(ANALISTA, 'POST', '/integration/test-email')).status).toBe(403)
+    const ok = await call<{ to: string; provider: string }>(GESTOR, 'POST', '/integration/test-email')
+    expect(ok.status).toBe(200)
+    expect(mailer.sent.at(-1)?.to).toEqual([ok.data.to])
+    expect(mailer.sent.at(-1)?.subject).toContain('Teste de e-mail')
+    mailer.failNext = true
+    const failed = await call<{ error: { code: string; message: string } }>(GESTOR, 'POST', '/integration/test-email')
+    expect(failed.status).toBe(502)
+    expect(failed.data.error).toMatchObject({ code: 'EMAIL_SEND_FAILED', message: expect.stringContaining('Falha simulada') })
+  })
+
   it('motivo com HTML é escapado no e-mail', async () => {
     const created = await call<RequestDetailDTO>(OBRA, 'POST', '/requests', newRequest)
     await call(ANALISTA, 'POST', `/requests/${created.data.id}/request-adjustment`, { comment: '<script>x</script>' })

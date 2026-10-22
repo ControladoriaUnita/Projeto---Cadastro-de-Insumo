@@ -110,6 +110,8 @@ Uma falha no envio **não desfaz** a ação (aprovação ou devolução): fica r
 | `graph` | envio real pelo Microsoft 365 |
 | `none` | desligado |
 
+Para conferir a configuração, a gestão usa **Integração → Enviar e-mail de teste**: o teste vai para o e-mail de quem está logado e, se o Microsoft 365 recusar, a tela mostra o motivo.
+
 Para usar `graph`, a TI registra um aplicativo no **Microsoft Entra ID** com a permissão de aplicativo **Mail.Send** (com consentimento do administrador) e informa `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` e a caixa remetente em `EMAIL_SENDER`. Recomendado: restringir o aplicativo a essa caixa com uma *application access policy* do Exchange.
 
 ---
