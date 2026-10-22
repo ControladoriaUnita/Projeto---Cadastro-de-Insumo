@@ -1,8 +1,9 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
-import { LogIn, LogOut } from 'lucide-react'
+import { LogIn, LogOut, Maximize, Minimize } from 'lucide-react'
 import logoWhite from '@/assets/brand/logo-unita-white.png'
 import { HOME_BY_ROLE, NAV } from '@/app/navigation'
 import { Button } from '@/components/ui'
+import { useFullscreen } from '@/hooks/useFullscreen'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/utils/cn'
 import { DemoUserSwitcher } from './DemoUserSwitcher'
@@ -10,6 +11,7 @@ import { DemoUserSwitcher } from './DemoUserSwitcher'
 /** Header grafite fixo (56px) com borda laranja de 2px — DESIGN_SYSTEM §7. Menu filtrado pelo papel. */
 export function AppShell() {
   const { user, demo, signOut, can } = useAuth()
+  const { isFullscreen, toggleFullscreen, supported: fullscreenSupported } = useFullscreen()
 
   return (
     <div className="min-h-full">
@@ -42,6 +44,18 @@ export function AppShell() {
                 <p className="text-sm font-semibold text-white">{user.fullName}</p>
                 <p className="text-xs text-ink-400">{user.workName ? `${user.roleLabel} · ${user.workName}` : user.roleLabel}</p>
               </div>
+            )}
+            {fullscreenSupported && (
+              <Button
+                variant="inverse"
+                size="sm"
+                icon={isFullscreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
+                onClick={toggleFullscreen}
+                aria-pressed={isFullscreen}
+                title={isFullscreen ? 'Sair da tela cheia (Esc)' : 'Tela cheia'}
+              >
+                <span className="hidden md:inline">{isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</span>
+              </Button>
             )}
             {!demo &&
               (user?.guest ? (
