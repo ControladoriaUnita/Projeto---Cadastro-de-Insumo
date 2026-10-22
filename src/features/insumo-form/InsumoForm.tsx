@@ -136,7 +136,6 @@ export function InsumoForm({ editor, context, requestDescription, disabled }: Pr
           </Field>
           <Field
             label="Categoria"
-            required
             error={error('categoria')}
             hint={hint('categoria', draft.categoria && categoryLabel(draft.categoria) !== draft.categoria ? `Código no UAU: ${draft.categoria}` : undefined)}
           >
@@ -150,7 +149,7 @@ export function InsumoForm({ editor, context, requestDescription, disabled }: Pr
               disabled={disabled}
             />
           </Field>
-          <Field label="Grupo" required error={error('grupo')} hint={hint('grupo')}>
+          <Field label="Grupo" error={error('grupo')} hint={hint('grupo')}>
             {choice('grupo', GROUPS)}
           </Field>
           <Field label="Controle" error={error('controle')}>

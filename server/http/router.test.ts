@@ -187,16 +187,87 @@ describe('fluxo obra → analista → gestor → UAU', () => {
     expect(d.draft?.descricao).toBe('REJUNTE EPÓXI CINZA PLATINA 1KG')
   })
 
-  it('não envia para aprovação com erros e nada chega ao UAU antes da aprovação', async () => {
+  it('avisos não impedem: envia e aprova sem categoria/grupo, e nada chega ao UAU antes da aprovação', async () => {
     const d = await createAndDraft()
-    const r = await call<{ error: { code: string } }>(ANALISTA, 'POST', `/requests/${d.id}/submit`)
-    expect(r.status).toBe(422)
-    expect(r.data.error.code).toBe('DRAFT_INVALID')
+    const preview = await call<{ validation: { ok: boolean; warnings: { field: string }[] } }>(ANALISTA, 'POST', `/requests/${d.id}/preview`, { draft: d.draft })
+    expect(preview.data.validation.ok).toBe(true)
+    expect(preview.data.validation.warnings.map((w) => w.field)).toEqual(expect.arrayContaining(['categoria', 'grupo']))
 
-    await call(ANALISTA, 'PUT', `/requests/${d.id}/draft`, { draft: completeDraft(d.draft!) })
     const submitted = await call<RequestDetailDTO>(ANALISTA, 'POST', `/requests/${d.id}/submit`)
     expect(submitted.data.status).toBe('aguardando_aprovacao')
     expect(await uau.findByCode('IM00015')).toBeNull()
+
+    const approved = await call<ApproveResultDTO>(GESTOR, 'POST', `/requests/${d.id}/approve`, {})
+    expect(approved.status).toBe(200)
+    expect(approved.data.request.status).toBe('aprovado')
+  })
+
+  it('insumo que já existe no UAU (mesma descrição) não é enviado', async () => {
+    const d = await createAndDraft()
+    await call(ANALISTA, 'PUT', `/requests/${d.id}/draft`, { draft: { ...completeDraft(d.draft!), descricao: 'Rejunte Epóxi Branco 1kg' } })
+    const r = await call<{ error: { code: string; message: string } }>(ANALISTA, 'POST', `/requests/${d.id}/submit`)
+    expect(r.status).toBe(409)
+    expect(r.data.error.code).toBe('ALREADY_IN_UAU')
+    expect(r.data.error.message).toContain('IM00246')
+    expect((await call<RequestDetailDTO>(ANALISTA, 'GET', `/requests/${d.id}`)).data.status).toBe('em_cadastro')
+  })
+
+  it('insumo criado no UAU depois do envio (mesmo código) não é aprovado nem gravado de novo', async () => {
+    const d = await createAndDraft()
+    await call(ANALISTA, 'POST', `/requests/${d.id}/submit`)
+    // Alguém cadastrou direto no UAU nesse meio-tempo
+    await uau.insert({ codigo: 'IM00015', descricao: 'OUTRO INSUMO', unidade: 'un', usuario: 'X', status: 0, confirmado: 1 })
+
+    const r = await call<{ error: { code: string; message: string } }>(GESTOR, 'POST', `/requests/${d.id}/approve`, {})
+    expect(r.status).toBe(409)
+    expect(r.data.error.code).toBe('ALREADY_IN_UAU')
+    expect(r.data.error.message).toContain('IM00015')
+    expect((await call<RequestDetailDTO>(GESTOR, 'GET', `/requests/${d.id}`)).data.status).toBe('aguardando_aprovacao')
+    expect((await uau.findByCode('IM00015'))?.descricao).toBe('OUTRO INSUMO')
+  })
+
+  it('confere com o UAU lido na hora: cache desatualizado não deixa passar duplicado', async () => {
+    // Gateway com cache: sem refresh devolve a leitura antiga
+    class CachedUau extends MockUauGateway {
+      stale: Awaited<ReturnType<MockUauGateway['loadCatalog']>> | null = null
+      override async loadCatalog(opts?: { refresh?: boolean }) {
+        if (!opts?.refresh && this.stale) return this.stale
+        this.stale = await super.loadCatalog()
+        return this.stale
+      }
+    }
+    uau = new CachedUau()
+    setUauGatewayForTests(uau)
+    const d = await createAndDraft()
+    await uau.insert({ codigo: 'IM09000', descricao: d.draft!.descricao, unidade: 'kg', usuario: 'X', status: 0, confirmado: 1 })
+
+    const preview = await call<{ validation: { ok: boolean } }>(ANALISTA, 'POST', `/requests/${d.id}/preview`, { draft: d.draft })
+    expect(preview.data.validation.ok).toBe(true) // a tela ainda usa o cache
+    const r = await call<{ error: { code: string; message: string } }>(ANALISTA, 'POST', `/requests/${d.id}/submit`)
+    expect(r.data.error.code).toBe('ALREADY_IN_UAU')
+    expect(r.data.error.message).toContain('IM09000')
+  })
+
+  it('UAU fora do ar ou cadastro vazio: envio e aprovação param com mensagem clara', async () => {
+    const d = await createAndDraft()
+    uau.failNext.catalog = true
+    const r = await call<{ error: { code: string; message: string } }>(ANALISTA, 'POST', `/requests/${d.id}/submit`)
+    expect(r.status).toBe(503)
+    expect(r.data.error.code).toBe('UAU_UNAVAILABLE')
+    expect(r.data.error.message).toContain('conferir se o insumo já existe')
+    expect((await call<RequestDetailDTO>(ANALISTA, 'GET', `/requests/${d.id}`)).data.status).toBe('em_cadastro')
+
+    await call(ANALISTA, 'POST', `/requests/${d.id}/submit`)
+    uau.failNext.catalog = true
+    const a = await call<{ error: { code: string } }>(GESTOR, 'POST', `/requests/${d.id}/approve`, {})
+    expect(a.status).toBe(503)
+    expect(a.data.error.code).toBe('UAU_UNAVAILABLE')
+    expect(await uau.findByCode('IM00015')).toBeNull()
+
+    setUauGatewayForTests(new MockUauGateway([]))
+    const empty = await call<{ error: { code: string } }>(GESTOR, 'POST', `/requests/${d.id}/approve`, {})
+    expect(empty.data.error.code).toBe('UAU_UNAVAILABLE')
+    expect((await call<RequestDetailDTO>(GESTOR, 'GET', `/requests/${d.id}`)).data.status).toBe('aguardando_aprovacao')
   })
 
   it('gestor ajusta, insere e confirma (muda a situação) no UAU', async () => {

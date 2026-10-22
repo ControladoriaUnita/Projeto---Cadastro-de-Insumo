@@ -124,8 +124,7 @@ function DraftEditorView({ request }: { request: RequestDetailDTO }) {
   const [returning, setReturning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const validation = editor.preview.data?.validation
-  const canSubmit = request.actions.includes('submit') && editor.previewCurrent && !!validation?.ok
+  const canSubmit = request.actions.includes('submit') && !editor.blocker
 
   const submit = async () => {
     setError(null)
@@ -164,7 +163,7 @@ function DraftEditorView({ request }: { request: RequestDetailDTO }) {
                 icon={<Send className="size-4" />}
                 loading={action.isPending}
                 disabled={!canSubmit}
-                title={canSubmit ? undefined : 'Corrija os erros da conferência para enviar'}
+                title={editor.blocker ?? undefined}
                 onClick={submit}
               >
                 Enviar para aprovação
@@ -182,6 +181,7 @@ function DraftEditorView({ request }: { request: RequestDetailDTO }) {
                   Recusar
                 </Button>
               )}
+              {editor.blocker && editor.previewCurrent && <p className="w-full text-xs font-medium text-error">{editor.blocker}</p>}
               <p className="w-full text-xs text-text-muted">
                 {editor.dirty ? 'Alterações não salvas.' : 'Tudo salvo.'} Nada é gravado no UAU até a gestão aprovar.
               </p>
