@@ -19,8 +19,8 @@ import { buildConfirmBody, buildInsertBody } from '../../../shared/domain/insumo
 import { CODE_RESERVING_STATUSES } from '../../../shared/domain/request/workflow'
 import { PERMISSIONS } from '../../../shared/domain/roles'
 import { formatRequestNumber } from '../../../shared/format'
-import { notFound, requirePermission } from '../context'
-import type { Repositories, UauGateway, UseCaseDeps } from '../ports'
+import { AppError, IntegrationError, notFound, requirePermission } from '../context'
+import type { CatalogSnapshot, Repositories, UauGateway, UseCaseDeps } from '../ports'
 
 const P = PERMISSIONS
 
@@ -111,9 +111,39 @@ export async function getDraftContext({ repos, uau, ctx }: UseCaseDeps, requestI
   }
 }
 
-/** Valida o rascunho contra o cadastro atual do UAU e os códigos reservados. */
-export async function validateAgainstCatalog(repos: Repositories, uau: UauGateway, draft: InsumoDraft, requestId?: string): Promise<DraftValidation> {
-  const [snapshot, reserved] = await Promise.all([uau.loadCatalog(), reservedCodes(repos, requestId)])
+/**
+ * Lê o cadastro do UAU para conferir se o insumo já existe. Qualquer falha (ou um cadastro vazio,
+ * que faria tudo parecer novo) vira UAU_UNAVAILABLE com mensagem clara: sem conferir, não passa.
+ * `fresh`: ignora o cache (envio e aprovação); a prévia da tela usa o cache.
+ */
+export async function loadCatalogForCheck(uau: UauGateway, { fresh = false } = {}): Promise<CatalogSnapshot> {
+  let snapshot: CatalogSnapshot
+  try {
+    snapshot = await uau.loadCatalog({ refresh: fresh })
+  } catch (err) {
+    const reason =
+      err instanceof IntegrationError
+        ? err.message
+        : err instanceof Error && err.name === 'TimeoutError'
+          ? 'O UAU demorou demais para responder.'
+          : 'O UAU não respondeu.'
+    throw new AppError('UAU_UNAVAILABLE', `Não foi possível consultar o UAU para conferir se o insumo já existe. ${reason} Nada foi enviado ou gravado; tente de novo em instantes.`, 503)
+  }
+  if (!snapshot.items.length) {
+    throw new AppError('UAU_UNAVAILABLE', 'O UAU devolveu o cadastro de insumos vazio, então não dá para conferir se o insumo já existe. Nada foi enviado ou gravado; tente de novo em instantes.', 503)
+  }
+  return snapshot
+}
+
+/** Valida o rascunho contra o cadastro do UAU (`fresh`: lido agora, sem cache) e os códigos reservados. */
+export async function validateAgainstCatalog(
+  repos: Repositories,
+  uau: UauGateway,
+  draft: InsumoDraft,
+  requestId?: string,
+  { fresh = false } = {},
+): Promise<DraftValidation> {
+  const [snapshot, reserved] = await Promise.all([loadCatalogForCheck(uau, { fresh }), reservedCodes(repos, requestId)])
   return validateDraft(draft, { index: buildCatalogIndex(snapshot.items), reserved })
 }
 

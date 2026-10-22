@@ -272,9 +272,12 @@ export async function saveDraft(deps: UseCaseDeps, id: string, input: InsumoDraf
 
 async function assertDraftValid(deps: UseCaseDeps, r: RequestRecord, draft: InsumoDraft | null): Promise<InsumoDraft> {
   if (!draft) throw new AppError('DRAFT_MISSING', 'Preencha o cadastro do insumo antes de continuar.', 422)
-  const validation = await validateAgainstCatalog(deps.repos, deps.uau, draft, r.id)
+  // O cadastro em cache pode ter alguns minutos: confere com o UAU lido agora
+  const validation = await validateAgainstCatalog(deps.repos, deps.uau, draft, r.id, { fresh: true })
   if (!validation.ok) {
-    throw new AppError('DRAFT_INVALID', 'O cadastro tem erros. Corrija antes de continuar.', 422, validation)
+    const messages = validation.errors.map((e) => e.message).join(' ')
+    if (validation.existsInUau) throw new AppError('ALREADY_IN_UAU', `Não dá para cadastrar: ${messages}`, 409, validation)
+    throw new AppError('DRAFT_INVALID', `O UAU não aceitaria este cadastro: ${messages}`, 422, validation)
   }
   return normalizeDraft(draft)
 }
@@ -347,12 +350,7 @@ export async function approveRequest(deps: UseCaseDeps, id: string, adjustments?
     r = await load(deps, id)
   }
 
-  // O cadastro em cache pode ter alguns minutos: relê o UAU antes de validar e gravar
-  const code = normalizeCode(r.draft?.codigo)
-  const existing = await deps.uau.findByCode(code)
-  if (existing) {
-    throw new AppError('CODE_TAKEN', `O código ${code} acabou de ser usado no UAU (${existing.descricao}). Escolha outro.`, 409)
-  }
+  // Relê o UAU (sem cache) e confere código e descrição antes de gravar
   const draft = await assertDraftValid(deps, r, r.draft)
 
   const { actor } = deps.ctx

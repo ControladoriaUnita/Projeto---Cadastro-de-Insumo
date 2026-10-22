@@ -69,6 +69,19 @@ export function useDraftEditor(requestId: string, saved: InsumoDraft | null | un
     return out
   }, [preview.data, validate])
 
+  const previewCurrent = sameDraft(debounced, draft) && !preview.isFetching
+  const validation = preview.data?.validation
+  /** Por que não dá para enviar/aprovar agora (null = pode). Avisos nunca bloqueiam. */
+  const blocker = preview.isError
+    ? 'Não foi possível conferir no UAU se o insumo já existe. Tente de novo em instantes.'
+    : !previewCurrent || !validation
+      ? 'Conferindo no UAU…'
+      : validation.existsInUau
+        ? 'Este insumo já existe no UAU e não pode ser cadastrado de novo.'
+        : !validation.ok
+          ? 'O UAU não aceitaria o cadastro assim: corrija o que está em vermelho na conferência.'
+          : null
+
   return {
     draft,
     validate,
@@ -81,7 +94,8 @@ export function useDraftEditor(requestId: string, saved: InsumoDraft | null | un
     copyError,
     preview,
     /** A prévia corresponde ao que está na tela (debounce concluído) */
-    previewCurrent: sameDraft(debounced, draft) && !preview.isFetching,
+    previewCurrent,
+    blocker,
     fieldIssues,
     save: () => save.mutateAsync(draft),
     saving: save.isPending,

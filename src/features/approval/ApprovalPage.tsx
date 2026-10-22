@@ -96,8 +96,7 @@ function ApprovalWorkspace({ request }: { request: RequestDetailDTO }) {
 
   const can = (a: RequestDetailDTO['actions'][number]) => request.actions.includes(a)
   const writeEnabled = config?.uauWriteEnabled ?? false
-  const validation = editor.preview.data?.validation
-  const ready = editor.previewCurrent && !!validation?.ok
+  const ready = !editor.blocker
 
   const onApproved = (res: ApproveResultDTO) => {
     setResult(res)
@@ -123,6 +122,7 @@ function ApprovalWorkspace({ request }: { request: RequestDetailDTO }) {
           <Button variant="ghost" icon={<XCircle className="size-4" />} onClick={() => setDialog('reject')}>
             Recusar
           </Button>
+          {editor.blocker && editor.previewCurrent && <p className="w-full text-xs font-medium text-error">{editor.blocker}</p>}
           <p className="w-full text-xs text-text-muted">
             {!writeEnabled
               ? 'Gravação no UAU desligada (simulação). Para gravar, o servidor precisa de UAU_GRAVACAO=real.'

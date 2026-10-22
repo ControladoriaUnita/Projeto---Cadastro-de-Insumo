@@ -85,36 +85,86 @@ describe('insumos parecidos', () => {
 })
 
 describe('validação do rascunho', () => {
+  const none = { index, reserved: new Map<string, string>() }
+
   it('aceita rascunho completo', () => {
-    const v = validateDraft(valid, { index, reserved: new Map() })
+    const v = validateDraft(valid, none)
     expect(v.errors).toEqual([])
     expect(v.ok).toBe(true)
+    expect(v.existsInUau).toBe(false)
     expect(v.suggestedCode).toBe('IM00247')
   })
 
-  it('bloqueia código existente, reservado e fora do padrão', () => {
-    const ctx = { index, reserved: new Map([['IM00247', '#0003']]) }
-    expect(validateDraft({ ...valid, codigo: 'IM00245' }, ctx).errors[0]?.field).toBe('codigo')
-    expect(validateDraft(valid, ctx).errors[0]?.message).toContain('#0003')
-    expect(validateDraft({ ...valid, codigo: 'XX1' }, ctx).ok).toBe(false)
+  it('bloqueia código que já existe no UAU, ativo ou inativo', () => {
+    const v = validateDraft({ ...valid, codigo: 'im00245' }, none)
+    expect(v).toMatchObject({ ok: false, existsInUau: true })
+    expect(v.errors).toEqual([{ field: 'codigo', message: 'O código IM00245 já existe no UAU: REJUNTE CIMENTICIO CINZA 1KG.' }])
+
+    const inactive = buildCatalogIndex([...catalog, item('IM00300', 'ARGAMASSA ANTIGA', { ativo: false })])
+    const w = validateDraft({ ...valid, codigo: 'IM00300' }, { index: inactive, reserved: new Map() })
+    expect(w.existsInUau).toBe(true)
+    expect(w.errors[0]?.message).toContain('(inativo)')
   })
 
-  it('bloqueia descrição idêntica a um insumo existente', () => {
-    const v = validateDraft({ ...valid, descricao: 'rejunte epoxi branco 1kg' }, { index, reserved: new Map() })
-    expect(v.errors.map((e) => e.message).join(' ')).toContain('IM00246')
+  it('bloqueia a mesma descrição de um insumo do UAU, ignorando acento, maiúsculas, espaços e vírgula decimal', () => {
+    for (const descricao of ['rejunte epoxi branco 1kg', '  Rejunte   Epóxi BRANCO 1kg ']) {
+      const v = validateDraft({ ...valid, descricao }, none)
+      expect(v).toMatchObject({ ok: false, existsInUau: true })
+      expect(v.errors).toEqual([{ field: 'descricao', message: 'Este insumo já existe no UAU com a mesma descrição: IM00246.' }])
+    }
+    const decimal = buildCatalogIndex([item('IM00500', 'TUBO PVC 1,5M')])
+    expect(validateDraft({ ...valid, descricao: 'tubo pvc 1.5m' }, { index: decimal, reserved: new Map() }).existsInUau).toBe(true)
   })
 
-  it('bloqueia medição com controle por quantidade (regra do UAU)', () => {
-    const ctx = { index, reserved: new Map() }
-    const v = validateDraft({ ...valid, tipoPagamento: 1, controle: 1 }, ctx)
+  it('descrição parecida, mas não igual (outra medida, outra ordem), só avisa', () => {
+    for (const descricao of ['REJUNTE EPOXI BRANCO 5KG', 'REJUNTE BRANCO EPOXI 1KG']) {
+      const v = validateDraft({ ...valid, descricao }, none)
+      expect(v).toMatchObject({ ok: true, existsInUau: false, errors: [] })
+      expect(v.similar.map((s) => s.codigo)).toContain('IM00246')
+      expect(v.warnings.map((w) => w.field)).toContain('descricao')
+    }
+  })
+
+  it('nenhum outro problema impede o cadastro: tudo vira aviso', () => {
+    const v = validateDraft(
+      {
+        ...EMPTY_DRAFT,
+        codigo: 'IM900', // fora do padrão
+        descricao: 'TIJ', // curta
+        unidade: 'xyz', // desconhecida
+        cap: '9.9.9', // CAP sem uso
+        ncm: '123', // NCM curto
+      },
+      none,
+    )
+    expect(v.errors).toEqual([])
+    expect(v).toMatchObject({ ok: true, existsInUau: false })
+    expect(v.warnings.map((w) => w.field)).toEqual(expect.arrayContaining(['codigo', 'descricao', 'unidade', 'categoria', 'grupo', 'cap', 'ncm']))
+
+    // Código que não é o próximo livre, grupo incomum para o prefixo e descrição maior que a do UAU
+    const w = validateDraft({ ...valid, codigo: 'IM00999', grupo: 4, descricao: 'REJUNTE EPOXI CINZA PLATINA 1KG PARA AREAS MOLHADAS' }, none)
+    expect(w).toMatchObject({ ok: true, errors: [] })
+    expect(w.warnings.map((x) => x.field)).toEqual(expect.arrayContaining(['codigo', 'grupo', 'descricao']))
+  })
+
+  it('bloqueia o que o UAU exige em branco (código, descrição, unidade)', () => {
+    const v = validateDraft({ ...EMPTY_DRAFT }, none)
+    expect(v.existsInUau).toBe(false)
+    expect(v.errors.map((e) => e.field)).toEqual(['codigo', 'descricao', 'unidade'])
+  })
+
+  it('bloqueia código em uso por outro cadastro em andamento, sugerindo o próximo livre', () => {
+    const v = validateDraft(valid, { index, reserved: new Map([['IM00247', '#0003']]) })
+    expect(v.ok).toBe(false)
+    expect(v.existsInUau).toBe(false)
+    expect(v.errors[0]?.message).toContain('#0003')
+    expect(v.errors[0]?.message).toContain('IM00248')
+  })
+
+  it('bloqueia medição com controle por quantidade (o UAU recusa)', () => {
+    const v = validateDraft({ ...valid, tipoPagamento: 1, controle: 1 }, none)
     expect(v.errors.map((e) => e.field)).toContain('controle')
-    expect(validateDraft({ ...valid, tipoPagamento: 1, controle: 2 }, ctx).errors).toEqual([])
-  })
-
-  it('exige campos obrigatórios e avisa sobre unidade desconhecida', () => {
-    const v = validateDraft({ ...EMPTY_DRAFT, codigo: 'IM00247', descricao: 'ALGO NOVO QUALQUER', unidade: 'xyz' }, { index, reserved: new Map() })
-    expect(v.errors.map((e) => e.field)).toEqual(expect.arrayContaining(['categoria', 'grupo']))
-    expect(v.warnings.map((e) => e.field)).toContain('unidade')
+    expect(validateDraft({ ...valid, tipoPagamento: 1, controle: 2 }, none).errors).toEqual([])
   })
 })
 

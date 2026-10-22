@@ -3,6 +3,7 @@
  * alteram só essa memória, para exercitar o fluxo completo sem tocar no UAU real.
  */
 import { fromUauRow, type CatalogItem } from '../../../shared/domain/insumo/catalog'
+import { IntegrationError } from '../../application/context'
 import { normalizeCode } from '../../../shared/domain/insumo/code'
 import { UAU_CONFIRMATION, type UauConfirmBody, type UauInsertBody } from '../../../shared/domain/insumo/uau-payload'
 import type { CatalogSnapshot, UauConnectionCheck, UauGateway, UauWriteResult } from '../../application/ports'
@@ -15,7 +16,7 @@ export class MockUauGateway implements UauGateway {
   readonly writeEnabled = true
   readonly user = 'PORTAL'
   /** Para testes: a próxima chamada desse tipo falha */
-  failNext: { insert?: boolean; confirm?: boolean } = {}
+  failNext: { insert?: boolean; confirm?: boolean; catalog?: boolean } = {}
   private rows = new Map<string, Record<string, unknown>>()
   private loadedAt = new Date().toISOString()
 
@@ -32,6 +33,7 @@ export class MockUauGateway implements UauGateway {
   }
 
   async loadCatalog(): Promise<CatalogSnapshot> {
+    if (this.consumeFailure('catalog')) throw new IntegrationError('O UAU não devolveu o cadastro de insumos (HTTP 500).')
     return { items: [...this.rows.values()].map(fromUauRow), loadedAt: this.loadedAt }
   }
 
@@ -90,7 +92,7 @@ export class MockUauGateway implements UauGateway {
     this.loadedAt = new Date().toISOString()
   }
 
-  private consumeFailure(kind: 'insert' | 'confirm'): boolean {
+  private consumeFailure(kind: 'insert' | 'confirm' | 'catalog'): boolean {
     if (!this.failNext[kind]) return false
     this.failNext[kind] = false
     return true
