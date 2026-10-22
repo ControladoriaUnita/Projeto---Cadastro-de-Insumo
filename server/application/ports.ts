@@ -26,6 +26,8 @@ export interface RequestRecord {
   justification: string
   requesterId: string
   requesterName: string
+  /** Para onde vão os avisos (aprovação e devolução); null em solicitações antigas */
+  requesterEmail: string | null
   analystId: string | null
   analystName: string | null
   approverId: string | null

@@ -43,6 +43,7 @@ beforeEach(() => {
 
 const newRequest = {
   requesterName: 'Carla Mendes',
+  requesterEmail: 'Carla.Mendes@UnitaEngenharia.com.br',
   kind: 'material',
   urgency: 'normal',
   workName: 'P212C - Pazza Ipanema 212',
@@ -136,6 +137,18 @@ describe('permissões por papel', () => {
     expect((await call(OBRA, 'POST', '/requests', { ...newRequest, kind: 'despesa_indireta' })).status).toBe(422)
     const r = await call<RequestDetailDTO>(OBRA, 'POST', '/requests', { ...newRequest, kind: 'servico', requesterName: 'João da Obra' })
     expect(r.data).toMatchObject({ kind: 'servico', requester: { name: 'João da Obra' } })
+  })
+
+  it('exige um e-mail válido do solicitante e guarda em minúsculas', async () => {
+    const { requesterEmail: _omitted, ...withoutEmail } = newRequest
+    const missing = await call(OBRA, 'POST', '/requests', withoutEmail)
+    expect(missing.status).toBe(422)
+    expect(JSON.stringify(missing.data)).toContain('Informe o e-mail do solicitante.')
+    expect((await call(OBRA, 'POST', '/requests', { ...newRequest, requesterEmail: '' })).status).toBe(422)
+    expect((await call(OBRA, 'POST', '/requests', { ...newRequest, requesterEmail: 'carla@' })).status).toBe(422)
+    expect((await call(OBRA, 'POST', '/requests/batch', { items: [newRequest, { ...newRequest, requesterEmail: 'sem-arroba' }] })).status).toBe(422)
+    const r = await call<RequestDetailDTO>(OBRA, 'POST', '/requests', newRequest)
+    expect(r.data.requesterEmail).toBe('carla.mendes@unitaengenharia.com.br')
   })
 
   it('lista só as obras de centro de custo "C" do UAU para o campo e o filtro', async () => {
@@ -365,9 +378,14 @@ describe('fluxo obra → analista → gestor → UAU', () => {
     expect(returned.data).toMatchObject({ status: 'requer_ajuste', lastComment: 'Informe a cor do rejunte.' })
     expect((await call(OUTRA_OBRA, 'POST', `/requests/${id}/resubmit`, newRequest)).status).toBe(404)
 
-    const resent = await call<RequestDetailDTO>(OBRA, 'POST', `/requests/${id}/resubmit`, { ...newRequest, description: 'Rejunte epóxi cinza platina 1kg (cor 113)' })
-    expect(resent.data).toMatchObject({ status: 'solicitado', lastComment: null, description: 'Rejunte epóxi cinza platina 1kg (cor 113)' })
-    expect(resent.data.events.map((e) => e.type)).toEqual(['created', 'request_adjustment', 'resubmit'])
+    expect((await call(OBRA, 'POST', `/requests/${id}/resubmit`, { ...newRequest, requesterEmail: '' })).status).toBe(422)
+    const resent = await call<RequestDetailDTO>(OBRA, 'POST', `/requests/${id}/resubmit`, {
+      ...newRequest,
+      requesterEmail: 'carla@unitaengenharia.com.br',
+      description: 'Rejunte epóxi cinza platina 1kg (cor 113)',
+    })
+    expect(resent.data).toMatchObject({ status: 'solicitado', lastComment: null, description: 'Rejunte epóxi cinza platina 1kg (cor 113)', requesterEmail: 'carla@unitaengenharia.com.br' })
+    expect(resent.data.events.map((e) => e.type)).toEqual(['created', 'request_adjustment', 'email_sent', 'resubmit'])
   })
 
   it('analista não aprova', async () => {
@@ -386,11 +404,11 @@ describe('aviso por e-mail', () => {
     return call<ApproveResultDTO>(GESTOR, 'POST', `/requests/${d.id}/approve`, {})
   }
 
-  it('avisa solicitante e analista, com cópia fixa e link para a solicitação', async () => {
+  it('aprovação avisa o e-mail do formulário, quem abriu e o analista, com cópia fixa e link', async () => {
     const r = await approveNew()
     expect(mailer.sent).toHaveLength(1)
     const mail = mailer.sent[0]!
-    expect(mail.to).toEqual(['obra.pazza@unita.example', 'cadastro@unita.example'])
+    expect(mail.to).toEqual(['carla.mendes@unitaengenharia.com.br', 'obra.pazza@unita.example', 'cadastro@unita.example'])
     expect(mail.cc).toEqual(['suprimentos@unita.example'])
     expect(mail.subject).toContain('IM00015')
     expect(mail.html).toContain(`https://insumos.example/solicitacoes/${r.data.request.id}`)
@@ -402,6 +420,36 @@ describe('aviso por e-mail', () => {
     expect(r.status).toBe(200)
     expect(r.data.request.status).toBe('aprovado')
     expect(r.data.request.events.at(-1)?.type).toBe('email_failed')
+  })
+
+  it('devolução à obra avisa só o e-mail do formulário, com o motivo e o link', async () => {
+    const created = await call<RequestDetailDTO>(OBRA, 'POST', '/requests', newRequest)
+    const r = await call<RequestDetailDTO>(ANALISTA, 'POST', `/requests/${created.data.id}/request-adjustment`, { comment: 'Informe a cor do rejunte.' })
+    expect(r.status).toBe(200)
+    expect(mailer.sent).toHaveLength(1)
+    const mail = mailer.sent[0]!
+    expect(mail.to).toEqual(['carla.mendes@unitaengenharia.com.br'])
+    expect(mail.cc).toEqual([])
+    expect(mail.subject).toContain('precisa de ajuste')
+    expect(mail.text).toContain('Informe a cor do rejunte.')
+    expect(mail.html).toContain(`https://insumos.example/solicitacoes/${created.data.id}`)
+    expect(r.data.events.at(-1)).toMatchObject({ type: 'email_sent', details: { to: ['carla.mendes@unitaengenharia.com.br'] } })
+  })
+
+  it('falha no e-mail da devolução não impede a devolução e fica no histórico', async () => {
+    const created = await call<RequestDetailDTO>(OBRA, 'POST', '/requests', newRequest)
+    mailer.failNext = true
+    const r = await call<RequestDetailDTO>(ANALISTA, 'POST', `/requests/${created.data.id}/request-adjustment`, { comment: 'Informe a cor.' })
+    expect(r.status).toBe(200)
+    expect(r.data.status).toBe('requer_ajuste')
+    expect(r.data.events.at(-1)).toMatchObject({ type: 'email_failed', details: { to: ['carla.mendes@unitaengenharia.com.br'] } })
+  })
+
+  it('motivo com HTML é escapado no e-mail', async () => {
+    const created = await call<RequestDetailDTO>(OBRA, 'POST', '/requests', newRequest)
+    await call(ANALISTA, 'POST', `/requests/${created.data.id}/request-adjustment`, { comment: '<script>x</script>' })
+    expect(mailer.sent[0]!.html).not.toContain('<script>')
+    expect(mailer.sent[0]!.html).toContain('&lt;script&gt;')
   })
 })
 

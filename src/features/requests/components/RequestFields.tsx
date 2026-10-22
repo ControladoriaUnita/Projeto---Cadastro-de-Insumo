@@ -17,6 +17,7 @@ export function validateRequestForm(form: CreateRequestInput): { data: CreateReq
 export function formFromRequest(r: RequestDTO): CreateRequestInput {
   return {
     requesterName: r.requester.name,
+    requesterEmail: r.requesterEmail ?? '',
     kind: (REQUESTABLE_KINDS as readonly string[]).includes(r.kind) ? (r.kind as Kind) : 'material',
     urgency: r.urgency,
     workName: r.workName,
@@ -37,8 +38,18 @@ interface Props {
 export function RequestFields({ form, errors, set }: Props) {
   return (
     <>
-      <Field label="Nome do solicitante" required error={errors.requesterName} className="sm:col-span-2">
+      <Field label="Nome do solicitante" required error={errors.requesterName}>
         <Input value={form.requesterName} onChange={(e) => set('requesterName', e.target.value)} autoComplete="name" maxLength={120} />
+      </Field>
+      <Field label="E-mail do solicitante" required error={errors.requesterEmail} hint="Recebe o aviso quando o insumo for aprovado ou precisar de ajuste.">
+        <Input
+          type="email"
+          value={form.requesterEmail}
+          onChange={(e) => set('requesterEmail', e.target.value)}
+          autoComplete="email"
+          inputMode="email"
+          maxLength={160}
+        />
       </Field>
       <Field label="Obra" required error={errors.workName}>
         <WorkSelect value={form.workName} onChange={(v) => set('workName', v)} />
@@ -81,7 +92,9 @@ export function RequestFields({ form, errors, set }: Props) {
 export function WorkSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const works = useWorks()
   if (works.isError) {
-    return <Input value={value} onChange={(e) => onChange(e.target.value)} maxLength={160} placeholder="Não foi possível carregar as obras do UAU: digite a obra" />
+    return (
+      <Input value={value} onChange={(e) => onChange(e.target.value)} maxLength={160} placeholder="Não foi possível carregar as obras do UAU: digite a obra" />
+    )
   }
   const options = (works.data ?? []).map((w) => w.label)
   return (

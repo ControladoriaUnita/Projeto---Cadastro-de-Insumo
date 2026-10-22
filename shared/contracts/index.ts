@@ -138,6 +138,8 @@ export interface RequestDTO {
   specification: string
   justification: string
   requester: PersonRef
+  /** E-mail informado pela obra; recebe os avisos (null em solicitações antigas) */
+  requesterEmail: string | null
   analyst: PersonRef | null
   approver: PersonRef | null
   draft: InsumoDraft | null
@@ -162,6 +164,13 @@ const text = (max: number) => z.string().trim().max(max)
 
 export const createRequestSchema = z.object({
   requesterName: text(120).min(3, 'Informe o nome do solicitante.'),
+  requesterEmail: z
+    .string({ required_error: 'Informe o e-mail do solicitante.' })
+    .trim()
+    .toLowerCase()
+    .min(1, 'Informe o e-mail do solicitante.')
+    .max(160, 'E-mail muito longo.')
+    .email('E-mail inválido. Ex.: nome@unitaengenharia.com.br'),
   kind: z.enum(REQUESTABLE_KINDS),
   urgency: z.enum(['normal', 'urgente']).default('normal'),
   workName: text(160).min(2, 'Informe a obra.'),

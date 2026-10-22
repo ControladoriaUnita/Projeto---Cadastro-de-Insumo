@@ -17,7 +17,10 @@ import { useCreateRequest, useCreateRequests } from './api'
 import { ImportSpreadsheetDialog } from './components/ImportSpreadsheetDialog'
 import { WorkSelect } from './components/RequestFields'
 
-type ItemInput = Omit<CreateRequestInput, 'workName' | 'requesterName'>
+/** Campos que valem para o envio inteiro (cabeçalho), não para cada insumo */
+type RequesterField = 'workName' | 'requesterName' | 'requesterEmail'
+const REQUESTER_FIELDS: readonly string[] = ['workName', 'requesterName', 'requesterEmail'] satisfies RequesterField[]
+type ItemInput = Omit<CreateRequestInput, RequesterField>
 type Kind = CreateRequestInput['kind']
 type ItemErrors = Partial<Record<keyof ItemInput, string>>
 
@@ -41,14 +44,16 @@ const emptyItem = (): Item => ({
 
 const isBlank = (i: Item) => !i.description.trim() && !i.unit.trim() && !i.justification.trim() && !i.specification.trim()
 
-function validateItem(item: Item, workName: string, requesterName: string): { data: CreateRequestInput | null; errors: ItemErrors } {
+type Requester = Pick<CreateRequestInput, RequesterField>
+
+function validateItem(item: Item, requester: Requester): { data: CreateRequestInput | null; errors: ItemErrors } {
   const { key: _key, line: _line, ...input } = item
-  const parsed = createRequestSchema.safeParse({ ...input, workName, requesterName })
+  const parsed = createRequestSchema.safeParse({ ...input, ...requester })
   if (parsed.success) return { data: parsed.data, errors: {} }
   const fieldErrors = parsed.error.flatten().fieldErrors
   const errors = Object.fromEntries(
     Object.entries(fieldErrors)
-      .filter(([k]) => k !== 'workName' && k !== 'requesterName')
+      .filter(([k]) => !REQUESTER_FIELDS.includes(k))
       .map(([k, v]) => [k, v?.[0]]),
   ) as ItemErrors
   return { data: null, errors }
@@ -66,6 +71,8 @@ export function NewRequestPage() {
   // Obra sem login digita o nome; quem entrou já vem preenchido
   const [requesterName, setRequesterName] = useState(user && !user.guest ? user.fullName : '')
   const [requesterError, setRequesterError] = useState<string | undefined>()
+  const [requesterEmail, setRequesterEmail] = useState(user && !user.guest ? (user.email ?? '') : '')
+  const [emailError, setEmailError] = useState<string | undefined>()
   const [items, setItems] = useState<Item[]>(() => [emptyItem()])
   const [errors, setErrors] = useState<Record<number, ItemErrors>>({})
   const [activeKey, setActiveKey] = useState(items[0]!.key)
@@ -105,7 +112,7 @@ export function NewRequestPage() {
     const nextErrors: Record<number, ItemErrors> = {}
     imported.forEach((item, i) => {
       // Campos faltando + tipo/urgência não reconhecidos na planilha
-      const found = { ...validateItem(item, workName || 'obra', requesterName || 'solicitante').errors, ...rows[i]!.issues }
+      const found = { ...validateItem(item, { workName, requesterName, requesterEmail }).errors, ...rows[i]!.issues }
       if (Object.keys(found).length) nextErrors[item.key] = found
     })
     setItems([...keep, ...imported])
@@ -127,8 +134,11 @@ export function NewRequestPage() {
     const requester = requesterName.trim()
     const rErr = requester.length < 3 ? 'Informe o nome do solicitante.' : undefined
     setRequesterError(rErr)
+    const email = createRequestSchema.shape.requesterEmail.safeParse(requesterEmail)
+    const eErr = email.success ? undefined : email.error.issues[0]?.message
+    setEmailError(eErr)
     const results = items.map((i) => {
-      const r = validateItem(i, work, requester)
+      const r = validateItem(i, { workName: work, requesterName: requester, requesterEmail })
       // Tipo/urgência não reconhecidos na planilha seguem bloqueando até a pessoa escolher na tela
       const { kind, urgency } = errors[i.key] ?? {}
       const sheetIssues = Object.fromEntries(Object.entries({ kind, urgency }).filter(([, v]) => v)) as ItemErrors
@@ -138,7 +148,7 @@ export function NewRequestPage() {
     const nextErrors = Object.fromEntries(results.filter((r) => !r.data).map((r) => [r.key, r.errors]))
     setErrors(nextErrors)
     const firstBad = results.find((r) => !r.data)
-    if (wErr || rErr || firstBad) {
+    if (wErr || rErr || eErr || firstBad) {
       if (firstBad) {
         setActiveKey(firstBad.key)
         document.getElementById(`item-${firstBad.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -191,7 +201,20 @@ export function NewRequestPage() {
                   maxLength={120}
                 />
               </Field>
-              <Field label="Obra" required error={workError}>
+              <Field label="E-mail do solicitante" required error={emailError} hint="Recebe o aviso quando o insumo for aprovado ou precisar de ajuste.">
+                <Input
+                  type="email"
+                  value={requesterEmail}
+                  onChange={(e) => {
+                    setRequesterEmail(e.target.value)
+                    setEmailError(undefined)
+                  }}
+                  autoComplete="email"
+                  inputMode="email"
+                  maxLength={160}
+                />
+              </Field>
+              <Field label="Obra" required error={workError} className="sm:col-span-2">
                 <WorkSelect
                   value={workName}
                   onChange={(v) => {
@@ -251,9 +274,7 @@ export function NewRequestPage() {
 
           {mutation.isError && <Alert tone="error">{errorMessage(mutation.error)}</Alert>}
           {pendingCount > 0 && (
-            <Alert tone="error">
-              {pendingCount === 1 ? '1 insumo tem' : `${pendingCount} insumos têm`} campos a corrigir, marcados em vermelho.
-            </Alert>
+            <Alert tone="error">{pendingCount === 1 ? '1 insumo tem' : `${pendingCount} insumos têm`} campos a corrigir, marcados em vermelho.</Alert>
           )}
           <div className="flex justify-end">
             <Button type="submit" variant="primary" loading={sending} icon={<Send className="size-4" />}>
@@ -309,7 +330,11 @@ interface ItemFieldsProps {
 function ItemFields({ item, index, errors, active, removable, onFocus, onChange, onRemove }: ItemFieldsProps) {
   const hasErrors = Object.values(errors).some(Boolean)
   return (
-    <li id={`item-${item.key}`} onFocus={onFocus} className={cn('border-l-2 border-transparent px-5 py-4', active && 'border-primary bg-ink-50', hasErrors && 'border-error')}>
+    <li
+      id={`item-${item.key}`}
+      onFocus={onFocus}
+      className={cn('border-l-2 border-transparent px-5 py-4', active && 'border-primary bg-ink-50', hasErrors && 'border-error')}
+    >
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-ink-700">
           Insumo {index + 1}

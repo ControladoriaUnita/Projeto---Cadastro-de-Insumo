@@ -97,7 +97,14 @@ Na tela de aprovação, a aba **Insumos do UAU** mostra o cadastro inteiro (busc
 
 ### Aviso por e-mail
 
-Quando o insumo é aprovado (inserido e confirmado), o solicitante e o analista recebem um e-mail com código, descrição, obra e link para a solicitação; a lista `EMAIL_APPROVAL_CC` vai em cópia. Uma falha no envio **não desfaz** a aprovação: fica registrada no histórico.
+O formulário de solicitação tem o campo obrigatório **E-mail do solicitante** (a obra entra sem login, então é por ele que ela é avisada). Os avisos:
+
+| Quando | Para quem | Conteúdo |
+|---|---|---|
+| Insumo aprovado (inserido e confirmado no UAU) | e-mail do solicitante e analista; `EMAIL_APPROVAL_CC` em cópia | código, descrição, obra e link para a solicitação |
+| Analista devolve à obra (*requer ajuste*) | e-mail do solicitante | motivo da devolução e link para ajustar e reenviar |
+
+Uma falha no envio **não desfaz** a ação (aprovação ou devolução): fica registrada no histórico como "falha no e-mail". Solicitações antigas, sem e-mail no formulário, avisam só quem tem login.
 
 | `EMAIL_PROVIDER` | Comportamento |
 |---|---|
@@ -130,7 +137,7 @@ server/
     ports.ts                      interfaces: repositórios e UauGateway
     use-cases/requests.ts         fluxo da solicitação (inclui aprovação em dois passos)
     use-cases/catalog.ts          busca no cadastro, parecidos, prévia/validação
-    use-cases/notifications.ts    aviso por e-mail na aprovação (falha não derruba o fluxo)
+    use-cases/notifications.ts    aviso por e-mail na aprovação e na devolução (falha não derruba o fluxo)
     notifications/                conteúdo dos e-mails
   infrastructure/
     uau/                          cliente HTTP (token em cache, 401, normalização), gateway real e simulado
