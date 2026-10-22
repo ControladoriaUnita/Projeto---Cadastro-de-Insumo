@@ -11,6 +11,7 @@ import { normalizeCode, nextFreeCode } from '../../../shared/domain/insumo/code'
 import { EMPTY_DRAFT, normalizeDraft, type DraftField, type InsumoDraft } from '../../../shared/domain/insumo/draft'
 import { buildConfirmBody, buildInsertBody } from '../../../shared/domain/insumo/uau-payload'
 import { REQUEST_KINDS } from '../../../shared/domain/request/kinds'
+import { DEADLINE_EVENT_TYPES, computeDeadlines, type DeadlineEvent } from '../../../shared/domain/request/deadline'
 import {
   APPROVAL_QUEUE,
   DRAFTING_QUEUE,
@@ -31,7 +32,7 @@ const P = PERMISSIONS
 
 // ----------------------------------------------------------------------------- leitura
 
-function toDTO(r: RequestRecord, actor: Actor): RequestDTO {
+function toDTO(r: RequestRecord, actor: Actor, events: readonly DeadlineEvent[], now: Date): RequestDTO {
   const person = (id: string | null, name: string | null) => (id ? { id, name: name ?? '' } : null)
   return {
     id: r.id,
@@ -55,6 +56,7 @@ function toDTO(r: RequestRecord, actor: Actor): RequestDTO {
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
     actions: availableActions(r, actor),
+    deadlines: computeDeadlines(events, now),
   }
 }
 
@@ -99,7 +101,12 @@ export async function listRequests({ repos, ctx }: UseCaseDeps, scope: RequestSc
       records = sortRequests(await repos.requests.list({ requesterId: actor.id }), false)
       break
   }
-  return records.map((r) => toDTO(r, actor))
+  const byRequest = new Map<string, EventRecord[]>()
+  for (const e of await repos.requests.listEventsOf(records.map((r) => r.id), DEADLINE_EVENT_TYPES)) {
+    byRequest.set(e.requestId, [...(byRequest.get(e.requestId) ?? []), e])
+  }
+  const now = ctx.now()
+  return records.map((r) => toDTO(r, actor, byRequest.get(r.id) ?? [], now))
 }
 
 async function load({ repos, ctx }: UseCaseDeps, id: string): Promise<RequestRecord> {
@@ -112,7 +119,7 @@ async function load({ repos, ctx }: UseCaseDeps, id: string): Promise<RequestRec
 export async function getRequest(deps: UseCaseDeps, id: string): Promise<RequestDetailDTO> {
   const r = await load(deps, id)
   const events = await deps.repos.requests.listEvents(r.id)
-  return { ...toDTO(r, deps.ctx.actor), events: events.map(eventDTO) }
+  return { ...toDTO(r, deps.ctx.actor, events, deps.ctx.now()), events: events.map(eventDTO) }
 }
 
 // ----------------------------------------------------------------------------- escrita (base)
@@ -208,7 +215,9 @@ export async function createRequests(deps: UseCaseDeps, items: CreateRequestInpu
   for (const [i, input] of items.entries()) {
     created.push(await insertRequest(deps, input, items.length > 1 ? { batch: { position: i + 1, size: items.length } } : null))
   }
-  return { requests: created.map((r) => toDTO(r, deps.ctx.actor)) }
+  // Recém-abertas: o único evento é a abertura
+  const now = deps.ctx.now()
+  return { requests: created.map((r) => toDTO(r, deps.ctx.actor, [{ type: 'created', at: r.createdAt }], now)) }
 }
 
 /** Obra corrige o que o analista pediu e reenvia; se o cadastro já tinha começado, volta para ele. */

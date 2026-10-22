@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/auth'
 import { formatDateTime, formatRequestNumber } from '@/utils/format'
 import { useRequest, useRequestAction, useResubmitRequest } from './api'
 import { CommentDialog } from './components/CommentDialog'
+import { DeadlinePanel } from './components/DeadlineBadge'
 import { ProgressSteps } from './components/ProgressSteps'
 import { RequestFields, formFromRequest, validateRequestForm, type RequestFormErrors } from './components/RequestFields'
 import { RequestSummary } from './components/RequestSummary'
@@ -103,12 +104,20 @@ export function RequestDetailPage() {
           {r.actions.includes('resubmit') ? <AdjustRequest key={r.updatedAt} request={r} /> : <RequestSummary request={r} />}
         </div>
 
-        <Card className="self-start">
-          <CardHeader title="Histórico" />
-          <CardBody>
-            <RequestTimeline events={r.events} />
-          </CardBody>
-        </Card>
+        <div className="grid content-start gap-4">
+          <Card>
+            <CardHeader title="Prazos" />
+            <CardBody>
+              <DeadlinePanel deadlines={r.deadlines} />
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader title="Histórico" />
+            <CardBody>
+              <RequestTimeline events={r.events} />
+            </CardBody>
+          </Card>
+        </div>
       </div>
 
       <CommentDialog

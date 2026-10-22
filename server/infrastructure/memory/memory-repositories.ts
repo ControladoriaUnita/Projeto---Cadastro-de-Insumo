@@ -72,6 +72,13 @@ export function createMemoryRepositories(store: MemoryStore, now: () => Date = (
       async listEvents(requestId) {
         return store.events.filter((e) => e.requestId === requestId).sort((a, b) => a.at.localeCompare(b.at)).map(clone)
       },
+      async listEventsOf(requestIds, types) {
+        const ids = new Set(requestIds)
+        return store.events
+          .filter((e) => ids.has(e.requestId) && types.includes(e.type))
+          .sort((a, b) => a.at.localeCompare(b.at))
+          .map(clone)
+      },
     },
   }
 }

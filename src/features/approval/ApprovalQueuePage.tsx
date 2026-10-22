@@ -37,13 +37,13 @@ export function ApprovalQueuePage() {
           {pending.length > 0 && (
             <Card>
               <CardHeader title="Pendências no UAU" description="A aprovação começou, mas não terminou (ex.: falha ao confirmar a situação). Abra e use “Retomar”." />
-              <RequestsTable rows={pending} columns={['number', 'description', 'work', 'status', 'updated']} linkTo={(r) => PATHS.approve(r.id)} />
+              <RequestsTable rows={pending} columns={['number', 'description', 'work', 'status', 'approvalDeadline', 'updated']} linkTo={(r) => PATHS.approve(r.id)} />
             </Card>
           )}
           <Card>
             <CardHeader title="Aguardando aprovação" description="Urgentes primeiro, depois os mais antigos. Insumos enviados juntos pela obra também são aprovados um a um." />
             {waiting.length ? (
-              <RequestsTable rows={waiting} columns={['number', 'description', 'work', 'analyst', 'status', 'updated']} linkTo={(r) => PATHS.approve(r.id)} />
+              <RequestsTable rows={waiting} columns={['number', 'description', 'work', 'analyst', 'status', 'approvalDeadline', 'updated']} linkTo={(r) => PATHS.approve(r.id)} />
             ) : (
               <EmptyState title="Nenhum cadastro aguardando" description="Quando o analista enviar um cadastro, ele aparece aqui." />
             )}

@@ -71,6 +71,8 @@ export interface RequestRepository {
   update(id: string, expectedStatus: RequestStatus, patch: RequestPatch): Promise<RequestRecord | null>
   addEvent(event: Omit<EventRecord, 'id'>): Promise<void>
   listEvents(requestId: string): Promise<EventRecord[]>
+  /** Eventos de várias solicitações de uma vez (só dos tipos pedidos), em ordem de data. */
+  listEventsOf(requestIds: readonly string[], types: readonly RequestEventType[]): Promise<EventRecord[]>
 }
 
 export interface IdentityRepository {

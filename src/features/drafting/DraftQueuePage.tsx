@@ -43,7 +43,7 @@ export function DraftQueuePage() {
             {errorMessage(requests.error)}
           </Alert>
         ) : rows.length ? (
-          <RequestsTable rows={rows} columns={['number', 'description', 'work', 'requester', 'analyst', 'status', 'created']} linkTo={(r) => PATHS.draft(r.id)} />
+          <RequestsTable rows={rows} columns={['number', 'description', 'work', 'requester', 'analyst', 'status', 'draftDeadline', 'created']} linkTo={(r) => PATHS.draft(r.id)} />
         ) : (
           <EmptyState title={view === 'solicitado' ? 'Nenhuma solicitação nova' : 'Nenhum cadastro em andamento'} description="A fila está em dia." />
         )}
