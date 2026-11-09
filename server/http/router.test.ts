@@ -445,6 +445,30 @@ describe('aviso por e-mail', () => {
     expect(r.data.events.at(-1)).toMatchObject({ type: 'email_failed', details: { to: ['carla.mendes@unitaengenharia.com.br'] } })
   })
 
+  it('recusa avisa só o e-mail do formulário, com o motivo e o link', async () => {
+    const created = await call<RequestDetailDTO>(OBRA, 'POST', '/requests', newRequest)
+    const r = await call<RequestDetailDTO>(ANALISTA, 'POST', `/requests/${created.data.id}/reject`, { comment: 'Já existe no UAU: IM00246.' })
+    expect(r.status).toBe(200)
+    expect(r.data.status).toBe('recusado')
+    expect(mailer.sent).toHaveLength(1)
+    const mail = mailer.sent[0]!
+    expect(mail.to).toEqual(['carla.mendes@unitaengenharia.com.br'])
+    expect(mail.cc).toEqual([])
+    expect(mail.subject).toContain('recusada')
+    expect(mail.text).toContain('Já existe no UAU: IM00246.')
+    expect(mail.html).toContain(`https://insumos.example/solicitacoes/${created.data.id}`)
+    expect(r.data.events.at(-1)).toMatchObject({ type: 'email_sent', details: { to: ['carla.mendes@unitaengenharia.com.br'] } })
+  })
+
+  it('falha no e-mail da recusa não impede a recusa e fica no histórico', async () => {
+    const created = await call<RequestDetailDTO>(OBRA, 'POST', '/requests', newRequest)
+    mailer.failNext = true
+    const r = await call<RequestDetailDTO>(GESTOR, 'POST', `/requests/${created.data.id}/reject`, { comment: 'Fora do escopo da obra.' })
+    expect(r.status).toBe(200)
+    expect(r.data.status).toBe('recusado')
+    expect(r.data.events.at(-1)?.type).toBe('email_failed')
+  })
+
   it('teste de e-mail vai para quem está logado; só a gestão pode e o erro do envio aparece', async () => {
     expect((await call(ANALISTA, 'POST', '/integration/test-email')).status).toBe(403)
     const ok = await call<{ to: string; provider: string }>(GESTOR, 'POST', '/integration/test-email')

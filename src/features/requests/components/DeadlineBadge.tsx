@@ -32,7 +32,7 @@ export function DeadlinePanel({ deadline }: { deadline: RequestDeadline | null }
         <DeadlineBadge deadline={deadline} />
       </div>
       <p className="text-xs text-text-muted">
-        São {REQUEST_DEADLINE_DAYS} dias corridos da abertura até a aprovação. Só a devolução à obra zera o prazo: ele recomeça quando a obra reenviar.
+        São {REQUEST_DEADLINE_DAYS} dias úteis (segunda a sexta) da abertura até a aprovação. Só a devolução à obra zera o prazo: ele recomeça quando a obra reenviar.
       </p>
     </div>
   )

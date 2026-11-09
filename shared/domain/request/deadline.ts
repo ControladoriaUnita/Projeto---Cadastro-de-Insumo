@@ -1,9 +1,10 @@
 /**
- * Prazo da solicitação, deduzido do histórico: 3 dias corridos da abertura até a aprovação.
+ * Prazo da solicitação, deduzido do histórico: 3 dias úteis da abertura até a aprovação.
+ * Dias úteis = segunda a sexta no horário de Brasília (sábado e domingo não contam).
  *
  *   começa     na abertura (`created`);
  *   pausa      quando o analista devolve à obra (`request_adjustment`): o tempo com a obra não conta;
- *   reinicia   quando a obra reenvia (`resubmit`): mais 3 dias a partir do reenvio;
+ *   reinicia   quando a obra reenvia (`resubmit`): mais 3 dias úteis a partir do reenvio;
  *   termina    ao aprovar (`approve`). Se o UAU recusar a inserção, volta a contar sem reiniciar.
  *
  * Enviar para aprovação (`submit`) e a gestão devolver ao analista (`return`) não mexem no prazo.
@@ -13,6 +14,8 @@ import type { RequestEventType } from './workflow'
 
 export const REQUEST_DEADLINE_DAYS = 3
 const DAY_MS = 24 * 60 * 60 * 1000
+/** Brasília (UTC−3, sem horário de verão): define em que dia da semana cai cada instante */
+const BRASILIA_OFFSET_MS = -3 * 60 * 60 * 1000
 
 export type DeadlineState = 'dentro_do_prazo' | 'vencido' | 'aguardando_obra' | 'concluido'
 
@@ -41,7 +44,24 @@ interface Clock {
   doneAt: string | null
 }
 
-const addDays = (iso: string, days: number) => new Date(Date.parse(iso) + days * DAY_MS).toISOString()
+const isWeekend = (ms: number) => {
+  const weekday = new Date(ms + BRASILIA_OFFSET_MS).getUTCDay()
+  return weekday === 0 || weekday === 6
+}
+
+/**
+ * Soma dias úteis mantendo o horário: cada dia que cai de segunda a sexta conta um.
+ * Ex.: aberta sexta às 15h → vence quarta às 15h; aberta sábado às 10h → vence quarta às 10h.
+ */
+export function addBusinessDays(iso: string, days: number): string {
+  let ms = Date.parse(iso)
+  let counted = 0
+  while (counted < days) {
+    ms += DAY_MS
+    if (!isWeekend(ms)) counted++
+  }
+  return new Date(ms).toISOString()
+}
 
 /** null = sem abertura no histórico */
 export function computeDeadline(events: readonly DeadlineEvent[], now: Date): RequestDeadline | null {
@@ -74,7 +94,7 @@ export function computeDeadline(events: readonly DeadlineEvent[], now: Date): Re
   }
   if (!clock) return null
   if (clock.paused && !clock.doneAt) return { state: 'aguardando_obra', startedAt: clock.startedAt, dueAt: null, doneAt: null }
-  const dueAt = addDays(clock.startedAt, REQUEST_DEADLINE_DAYS)
+  const dueAt = addBusinessDays(clock.startedAt, REQUEST_DEADLINE_DAYS)
   const state: DeadlineState = clock.doneAt ? 'concluido' : now.getTime() > Date.parse(dueAt) ? 'vencido' : 'dentro_do_prazo'
   return { state, startedAt: clock.startedAt, dueAt, doneAt: clock.doneAt }
 }
