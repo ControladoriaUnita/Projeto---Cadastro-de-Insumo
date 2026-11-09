@@ -26,7 +26,7 @@ import { PERMISSIONS } from '../../../shared/domain/roles'
 import { AppError, can, notFound, requirePermission, type Actor } from '../context'
 import type { EventRecord, RequestPatch, RequestRecord, UseCaseDeps } from '../ports'
 import { reservedCodes, validateAgainstCatalog } from './catalog'
-import { notifyAdjustmentRequested, notifyApproved } from './notifications'
+import { notifyAdjustmentRequested, notifyApproved, notifyRejected } from './notifications'
 
 const P = PERMISSIONS
 
@@ -301,7 +301,9 @@ export async function requestAdjustment(deps: UseCaseDeps, id: string, comment: 
 
 export async function rejectRequest(deps: UseCaseDeps, id: string, comment: string): Promise<RequestDetailDTO> {
   const r = await load(deps, id)
-  return detail(deps, await transition(deps, r, 'reject', 'recusado', { comment, patch: { lastComment: comment } }))
+  const updated = await transition(deps, r, 'reject', 'recusado', { comment, patch: { lastComment: comment } })
+  await notifyRejected(deps, updated, comment)
+  return detail(deps, updated)
 }
 
 // ----------------------------------------------------------------------------- gestor

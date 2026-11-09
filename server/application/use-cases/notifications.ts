@@ -1,10 +1,11 @@
 /**
  * Avisos por e-mail. Nunca derrubam o fluxo: qualquer falha (configuração, rede, servidor de
- * e-mail) fica registrada no histórico da solicitação e a ação (aprovação, devolução) continua valendo.
+ * e-mail) fica registrada no histórico da solicitação e a ação (aprovação, devolução, recusa) continua valendo.
  */
 import { buildAdjustmentEmail } from '../notifications/adjustment-email'
 import { buildApprovalEmail } from '../notifications/approval-email'
 import type { EmailContent } from '../notifications/layout'
+import { buildRejectionEmail } from '../notifications/rejection-email'
 import type { RequestRecord, UseCaseDeps } from '../ports'
 
 const isEmail = (v: string | null | undefined): v is string => !!v && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
@@ -35,6 +36,16 @@ export async function notifyAdjustmentRequested(deps: UseCaseDeps, r: RequestRec
     to: isEmail(r.requesterEmail) ? [r.requesterEmail.toLowerCase()] : await participantEmails(deps, { ...r, analystId: null }),
     cc: [],
     content: buildAdjustmentEmail(r, reason, deps.ctx.actor.fullName, deps.mailer.appUrl),
+  }))
+}
+
+/** Avisa o solicitante (e-mail do formulário) que a solicitação foi recusada, com o motivo. */
+export async function notifyRejected(deps: UseCaseDeps, r: RequestRecord, reason: string): Promise<void> {
+  await sendAndRecord(deps, r, async () => ({
+    // Mesmos destinatários da devolução: e-mail do formulário ou, em solicitações antigas, quem abriu com login
+    to: isEmail(r.requesterEmail) ? [r.requesterEmail.toLowerCase()] : await participantEmails(deps, { ...r, analystId: null }),
+    cc: [],
+    content: buildRejectionEmail(r, reason, deps.ctx.actor.fullName, deps.mailer.appUrl),
   }))
 }
 
