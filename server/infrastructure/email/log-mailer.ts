@@ -25,7 +25,8 @@ export class LogMailer implements Mailer {
     }
     this.sent.push(message)
     if (this.sent.length > KEEP_LAST) this.sent.shift()
-    console.info(`[e-mail] para ${message.to.join(', ')}${message.cc.length ? ` (cc ${message.cc.join(', ')})` : ''} — ${message.subject}\n${message.text}`)
+    const files = message.attachments?.length ? `\nAnexos: ${message.attachments.map((a) => a.name).join(', ')}` : ''
+    console.info(`[e-mail] para ${message.to.join(', ')}${message.cc.length ? ` (cc ${message.cc.join(', ')})` : ''} — ${message.subject}\n${message.text}${files}`)
   }
 }
 

@@ -1,16 +1,16 @@
 /**
- * Obras cadastradas e ativas no UAU, só de centro de custo "C": campo "Obra" da solicitação e
- * filtro do acompanhamento.
+ * Obras que podem ser escolhidas no campo "Obra" da solicitação e no filtro do acompanhamento:
+ * a lista cadastrada em shared/domain/works.ts (mais "Escritório" para pedidos internos).
  */
 import type { WorkDTO } from '../../../shared/contracts'
 import { PERMISSIONS } from '../../../shared/domain/roles'
-import { isConstructionWork } from '../../../shared/domain/works'
+import { registeredWorks } from '../../../shared/domain/works'
 import { requirePermission } from '../context'
 import type { UseCaseDeps } from '../ports'
 
 const P = PERMISSIONS
 
-export async function listWorks({ uau, ctx }: UseCaseDeps): Promise<WorkDTO[]> {
+export async function listWorks({ ctx }: UseCaseDeps): Promise<WorkDTO[]> {
   requirePermission(ctx, P.requestCreate, P.requestReadOwn, P.requestReadAll)
-  return (await uau.listWorks()).filter(isConstructionWork)
+  return registeredWorks()
 }

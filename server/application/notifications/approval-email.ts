@@ -12,7 +12,7 @@ export function buildApprovalEmail(r: RequestRecord, appUrl: string | null): App
     subject: `Insumo aprovado: ${code} · ${description}`,
     eyebrow: 'Insumo aprovado',
     title: `${code} · ${description}`,
-    intro: 'O insumo solicitado foi criado e confirmado no UAU. Já pode ser usado em pedidos e cotações.',
+    intro: 'O insumo solicitado foi criado e confirmado no UAU. Já pode ser usado em pedidos e cotações. Segue anexo o formulário SUP-F090 (Cadastro de Insumo) em Excel.',
     rows: [
       ['Código no UAU', code],
       ['Descrição', description],

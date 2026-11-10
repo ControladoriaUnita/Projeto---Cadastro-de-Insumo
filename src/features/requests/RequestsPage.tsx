@@ -48,7 +48,7 @@ export function RequestsPage() {
   const searching = search.number.trim() !== '' || search.text.trim() !== '' || search.requester.trim() !== ''
   const works = useWorks()
 
-  // Obras do UAU; se o UAU não responder, as obras das próprias solicitações
+  // Obras cadastradas; se a lista não carregar, as obras das próprias solicitações
   const workOptions = useMemo(
     () => works.data?.map((w) => w.label) ?? [...new Set((requests.data ?? []).map((r) => r.workName))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
     [works.data, requests.data],
