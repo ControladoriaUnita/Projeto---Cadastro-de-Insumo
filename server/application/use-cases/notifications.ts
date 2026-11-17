@@ -4,9 +4,10 @@
  */
 import { buildAdjustmentEmail } from '../notifications/adjustment-email'
 import { buildApprovalEmail } from '../notifications/approval-email'
+import { buildInsumoFormXlsx } from '../notifications/insumo-form-xlsx'
 import type { EmailContent } from '../notifications/layout'
 import { buildRejectionEmail } from '../notifications/rejection-email'
-import type { RequestRecord, UseCaseDeps } from '../ports'
+import type { EmailAttachment, RequestRecord, UseCaseDeps } from '../ports'
 
 const isEmail = (v: string | null | undefined): v is string => !!v && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
 
@@ -17,15 +18,19 @@ async function participantEmails({ repos }: UseCaseDeps, r: RequestRecord): Prom
   return [...new Set([r.requesterEmail, ...people.map((p) => p?.email)].map((e) => e?.toLowerCase()).filter(isEmail))]
 }
 
-/** Avisa solicitante e analista (com cópia para a lista fixa) que o insumo foi aprovado. */
+/**
+ * Avisa solicitante e analista (com cópia para a lista fixa) que o insumo foi aprovado, com o
+ * formulário SUP-F090 em Excel anexado para a operação.
+ */
 export async function notifyApproved(deps: UseCaseDeps, r: RequestRecord): Promise<void> {
   await sendAndRecord(deps, r, async () => {
     const { mailer } = deps
     const participants = await participantEmails(deps, r)
     const cc = mailer.approvalCc.filter((e) => !participants.includes(e))
     const content = buildApprovalEmail(r, mailer.appUrl)
+    const attachments = [await buildInsumoFormXlsx([r])]
     // Sem participantes com e-mail, a lista fixa vira destinatária
-    return participants.length ? { to: participants, cc, content } : { to: cc, cc: [], content }
+    return participants.length ? { to: participants, cc, content, attachments } : { to: cc, cc: [], content, attachments }
   })
 }
 
@@ -50,14 +55,18 @@ export async function notifyRejected(deps: UseCaseDeps, r: RequestRecord, reason
 }
 
 /** Monta, envia e registra no histórico; nunca lança erro. Sem destinatário, não envia nem registra. */
-async function sendAndRecord(deps: UseCaseDeps, r: RequestRecord, build: () => Promise<{ to: string[]; cc: string[]; content: EmailContent }>) {
+async function sendAndRecord(
+  deps: UseCaseDeps,
+  r: RequestRecord,
+  build: () => Promise<{ to: string[]; cc: string[]; content: EmailContent; attachments?: EmailAttachment[] }>,
+) {
   let details: Record<string, unknown> = {}
   try {
     if (!deps.mailer.enabled) return
-    const { to, cc, content } = await build()
+    const { to, cc, content, attachments } = await build()
     if (!to.length) return
-    details = { subject: content.subject, to, cc }
-    await deps.mailer.send({ to, cc, ...content })
+    details = { subject: content.subject, to, cc, ...(attachments?.length ? { attachments: attachments.map((a) => a.name) } : {}) }
+    await deps.mailer.send({ to, cc, ...content, attachments })
     await recordEmail(deps, r, 'email_sent', details)
   } catch (err) {
     await recordEmail(deps, r, 'email_failed', { ...details, error: err instanceof Error ? err.message : String(err) })

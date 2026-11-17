@@ -46,7 +46,7 @@ const newRequest = {
   requesterEmail: 'Carla.Mendes@UnitaEngenharia.com.br',
   kind: 'material',
   urgency: 'normal',
-  workName: 'P212C - Pazza Ipanema 212',
+  workName: 'Pazza - Ipanema 212',
   description: 'Rejunte epóxi cinza platina 1kg',
   unit: 'kg',
   specification: '',
@@ -151,10 +151,14 @@ describe('permissões por papel', () => {
     expect(r.data.requesterEmail).toBe('carla.mendes@unitaengenharia.com.br')
   })
 
-  it('lista só as obras de centro de custo "C" do UAU para o campo e o filtro', async () => {
-    const r = await call<{ codigo: string }[]>(OBRA, 'GET', '/works')
+  it('lista só as obras cadastradas no app, mais "Escritório" para pedidos internos', async () => {
+    const r = await call<{ label: string }[]>(OBRA, 'GET', '/works')
     expect(r.status).toBe(200)
-    expect(r.data.map((w) => w.codigo)).toEqual(['J001C', 'P007C', 'P212C'])
+    const labels = r.data.map((w) => w.label)
+    expect(labels).toHaveLength(21)
+    expect(labels[0]).toBe('Benx/Hines - Viva Benx Estação Vila Mariana')
+    expect(labels).toContain('Pazza - Ipanema 212')
+    expect(labels.at(-1)).toBe('Escritório')
   })
 })
 
@@ -412,6 +416,26 @@ describe('aviso por e-mail', () => {
     expect(mail.cc).toEqual(['suprimentos@unita.example'])
     expect(mail.subject).toContain('IM00015')
     expect(mail.html).toContain(`https://insumos.example/solicitacoes/${r.data.request.id}`)
+  })
+
+  it('aprovação anexa o formulário SUP-F090 em Excel com os dados do insumo', async () => {
+    const r = await approveNew()
+    const file = mailer.sent[0]!.attachments?.[0]
+    expect(file).toMatchObject({ name: 'SUP-F090 Cadastro de Insumo - IM00015.xlsx', contentType: expect.stringContaining('spreadsheetml') })
+    const ExcelJS = (await import('exceljs')).default
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(Buffer.from(file!.contentBase64, 'base64') as unknown as ArrayBuffer)
+    const ws = wb.getWorksheet('Formulário Cadastro Insumo')!
+    expect(ws.getCell('C2').value).toBe('FORMULÁRIO')
+    expect(ws.getCell('K2').value).toBe('SUP-F090')
+    expect(ws.getCell('C7').value).toBe('DESCRIÇÃO DO INSUMO')
+    expect(ws.getCell('B8').value).toBe('IM00015')
+    expect(ws.getCell('D8').value).toBe('kg')
+    expect(ws.getCell('G8').value).toBe(newRequest.justification)
+    expect(ws.getCell('H8').value).toBe('Ensacados - Argamassa')
+    expect(ws.getCell('B19').value).toBe('Solicitado por:')
+    expect(ws.getCell('C19').value).toBe(newRequest.requesterName)
+    expect(r.data.request.events.at(-1)).toMatchObject({ type: 'email_sent', details: { attachments: ['SUP-F090 Cadastro de Insumo - IM00015.xlsx'] } })
   })
 
   it('falha no e-mail não desfaz a aprovação e fica no histórico', async () => {

@@ -88,12 +88,12 @@ export function RequestFields({ form, errors, set }: Props) {
   )
 }
 
-/** Obras ativas no UAU, com busca digitando; se o UAU não responder, libera digitar o nome da obra. */
+/** Obras cadastradas no app (mais "Escritório"), com busca digitando; se a lista não carregar, libera digitar o nome da obra. */
 export function WorkSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const works = useWorks()
   if (works.isError) {
     return (
-      <Input value={value} onChange={(e) => onChange(e.target.value)} maxLength={160} placeholder="Não foi possível carregar as obras do UAU: digite a obra" />
+      <Input value={value} onChange={(e) => onChange(e.target.value)} maxLength={160} placeholder="Não foi possível carregar as obras: digite a obra" />
     )
   }
   const options = (works.data ?? []).map((w) => w.label)
@@ -103,7 +103,7 @@ export function WorkSelect({ value, onChange }: { value: string; onChange: (valu
       onChange={onChange}
       options={options}
       disabled={works.isLoading}
-      placeholder={works.isLoading ? 'Carregando obras do UAU…' : 'Digite para buscar a obra'}
+      placeholder={works.isLoading ? 'Carregando obras…' : 'Digite para buscar a obra'}
       aria-label="Obra"
     />
   )

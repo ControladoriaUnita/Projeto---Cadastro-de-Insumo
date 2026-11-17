@@ -140,12 +140,19 @@ export interface UauGateway {
 
 // ----------------------------------------------------------------------------- e-mail
 
+export interface EmailAttachment {
+  name: string
+  contentType: string
+  contentBase64: string
+}
+
 export interface EmailMessage {
   to: string[]
   cc: string[]
   subject: string
   html: string
   text: string
+  attachments?: EmailAttachment[]
 }
 
 export interface Mailer {

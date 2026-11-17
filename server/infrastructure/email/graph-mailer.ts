@@ -45,6 +45,12 @@ export class GraphMailer implements Mailer {
           body: { contentType: 'HTML', content: message.html },
           toRecipients: recipients(message.to),
           ccRecipients: recipients(message.cc),
+          attachments: (message.attachments ?? []).map((a) => ({
+            '@odata.type': '#microsoft.graph.fileAttachment',
+            name: a.name,
+            contentType: a.contentType,
+            contentBytes: a.contentBase64,
+          })),
         },
         saveToSentItems: true,
       }),
