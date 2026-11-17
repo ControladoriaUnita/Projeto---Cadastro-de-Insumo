@@ -11,7 +11,7 @@ import { Alert, Button, Card, EmptyState, Input, KpiStrip, SearchSelect, Skeleto
 import { errorMessage } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { useRequests, useWorks } from './api'
-import { RequestsTable } from './components/RequestsTable'
+import { RequestsTable, applyColumnFilters, type ColumnFilters } from './components/RequestsTable'
 
 type View = 'open' | 'done' | 'all'
 
@@ -45,7 +45,9 @@ export function RequestsPage() {
   const createdCount = (useLocation().state as { createdCount?: number } | null)?.createdCount
   const [work, setWork] = useState('')
   const [search, setSearch] = useState<RequestSearch>(NO_SEARCH)
-  const searching = search.number.trim() !== '' || search.text.trim() !== '' || search.requester.trim() !== ''
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>({})
+  const filteringColumns = Object.keys(columnFilters).length > 0
+  const searching = search.number.trim() !== '' || search.text.trim() !== '' || search.requester.trim() !== '' || filteringColumns
   const works = useWorks()
 
   // Obras do UAU; se o UAU não responder, as obras das próprias solicitações
@@ -54,11 +56,21 @@ export function RequestsPage() {
     [works.data, requests.data],
   )
 
-  const groups = useMemo(() => {
+  // Antes dos filtros de coluna: base das listas de valores de cada filtro
+  const unfiltered = useMemo(() => {
     const all = (requests.data ?? []).filter((r) => (!work || r.workName === work) && matchesSearch(r, search))
     const done = all.filter((r) => FINAL_STATUSES.includes(r.status))
     return { all, done, open: all.filter((r) => !FINAL_STATUSES.includes(r.status)) }
   }, [requests.data, work, search])
+
+  const groups = useMemo(
+    () => ({
+      all: applyColumnFilters(unfiltered.all, columnFilters),
+      done: applyColumnFilters(unfiltered.done, columnFilters),
+      open: applyColumnFilters(unfiltered.open, columnFilters),
+    }),
+    [unfiltered, columnFilters],
+  )
 
   const rows = groups[view]
   const approved = groups.done.filter((r) => r.status === 'aprovado').length
@@ -157,6 +169,7 @@ export function RequestsPage() {
               onClick={() => {
                 setSearch(NO_SEARCH)
                 setWork('')
+                setColumnFilters({})
               }}
             >
               Limpar filtros
@@ -173,9 +186,10 @@ export function RequestsPage() {
           <Alert tone="error" className="m-5">
             {errorMessage(requests.error)}
           </Alert>
-        ) : rows.length ? (
+        ) : rows.length || filteringColumns ? (
           <RequestsTable
             rows={rows}
+            filters={{ source: unfiltered[view], value: columnFilters, onChange: setColumnFilters }}
             columns={seesAll ? ['number', 'description', 'work', 'requester', 'status', 'deadline', 'updated'] : ['number', 'description', 'status', 'deadline', 'created', 'updated']}
             linkTo={(r) => PATHS.request(r.id)}
           />
