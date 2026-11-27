@@ -3,7 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { Alert, Button } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
 import { AuthLayout } from './AuthLayout'
-import { LoginNotice, useLoginNotice } from './LoginNotice'
+import { LoginNotice, TI_EMAIL, useLoginNotice } from './LoginNotice'
 
 /** Logo da Microsoft (quatro quadrados), como pede o guia de marca para "Entrar com a Microsoft". */
 function MicrosoftLogo() {
@@ -59,7 +59,12 @@ export function LoginPage() {
         </Button>
         {loading && <p className="text-center text-sm text-text-muted">Conclua o login na janela da Microsoft que abriu.</p>}
         {error && <Alert tone="error">{error}</Alert>}
-        <p className="text-center text-xs text-text-muted">Não sabe a senha do seu e-mail institucional? Procure o TI.</p>
+        <p className="text-center text-xs text-text-muted">
+          Não sabe a senha do seu e-mail institucional? Procure o TI:{' '}
+          <a href={`mailto:${TI_EMAIL}`} className="font-medium text-primary hover:underline">
+            {TI_EMAIL}
+          </a>
+        </p>
       </div>
       <div className="mt-6 border-t border-border pt-4 text-center text-sm text-text-muted">
         Quem é da obra entra direto e já pode solicitar insumos.
