@@ -8,7 +8,7 @@ import { UnitaLogin } from '@/components/UnitaLogin'
 export function AuthLayout({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
   return (
     <UnitaLogin
-      area="Suprimentos"
+      area="Orçamentos"
       ferramenta="Cadastro de insumos"
       descricao="Solicitação, análise e cadastro de insumos no UAU em um só fluxo."
       titulo={title}
