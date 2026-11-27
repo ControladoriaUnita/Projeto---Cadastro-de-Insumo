@@ -45,6 +45,69 @@ export interface AuthConfigDTO {
   corporateDomains: string[]
 }
 
+// ----------------------------------------------------------------------------- usuários (gestão)
+
+/** Perfil na tela "Usuários e permissões" */
+export interface ManagedUserDTO {
+  id: string
+  fullName: string
+  email: string | null
+  role: RoleKey
+  roleLabel: string
+  workName: string | null
+  active: boolean
+  /** Já entrou alguma vez com a conta Microsoft */
+  linkedMicrosoft: boolean
+  lastLoginAt: string | null
+  createdAt: string | null
+}
+
+const roleSchema = z.enum(['obra', 'analista', 'gestor'])
+const userName = z.string().trim().min(3, 'Informe o nome completo.').max(120)
+const workNameField = z
+  .string()
+  .trim()
+  .max(160)
+  .transform((v) => v || null)
+
+/** Cadastro antecipado: a pessoa entra depois com a conta Microsoft e é ligada pelo e-mail. */
+export const createUserSchema = z.object({
+  fullName: userName,
+  email: z.string().trim().toLowerCase().email('E-mail inválido.').max(160),
+  role: roleSchema,
+  workName: workNameField.default(''),
+})
+export type CreateUserInput = z.input<typeof createUserSchema>
+
+export const updateUserSchema = z
+  .object({
+    fullName: userName.optional(),
+    role: roleSchema.optional(),
+    workName: workNameField.optional(),
+    active: z.boolean().optional(),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), 'Nada para alterar.')
+export type UpdateUserInput = z.input<typeof updateUserSchema>
+
+/** Pedido de acesso em aberto, para a gestão decidir */
+export interface AccessRequestDTO {
+  id: string
+  email: string
+  fullName: string
+  requestedRole: RoleKey
+  workName: string | null
+  message: string | null
+  createdAt: string
+  /** Perfil que já existe com o mesmo e-mail (a pessoa já entrou pelo Microsoft) */
+  existingUser: { id: string; role: RoleKey; active: boolean } | null
+}
+
+export const resolveAccessRequestSchema = z.discriminatedUnion('decision', [
+  z.object({ decision: z.literal('approve'), role: roleSchema, workName: workNameField.optional() }),
+  z.object({ decision: z.literal('reject'), notes: z.string().trim().max(1000).optional() }),
+])
+export type ResolveAccessRequestInput = z.input<typeof resolveAccessRequestSchema>
+
 export const accessRequestSchema = z
   .object({
     fullName: z.string().trim().min(3, 'Informe seu nome completo.').max(120),

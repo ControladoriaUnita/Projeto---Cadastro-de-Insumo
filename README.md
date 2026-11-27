@@ -41,7 +41,11 @@ A base atual do UAU **parece ser produção** e a API **não exclui insumos** (s
 1. Crie o projeto no Supabase e aplique as migrations de `supabase/migrations/` na ordem (ver [`supabase/README.md`](supabase/README.md)).
 2. Registre o app no Microsoft Entra ID (abaixo).
 3. Na Vercel, configure as variáveis do `.env.example` com `DATA_SOURCE=supabase` e `AUTH_MODE=entra`. **Nunca** prefixe credenciais com `VITE_`.
-4. Cadastre os perfis de analista e gestão (ver `supabase/README.md`, passo 3). Quem é da obra entra direto: o primeiro login cria o perfil como obra.
+4. Entre com a sua conta e dê os papéis na tela **Usuários** (só gestão). O primeiro gestor precisa ser definido uma vez no Supabase (ver `supabase/README.md`, passo 3). Quem é da obra entra direto: o primeiro login cria o perfil como obra.
+
+### Usuários e permissões (tela da gestão)
+
+Em **Usuários** a gestão vê quem usa o app e muda papel (Obra, Analista, Gestão), obra padrão e nome, desativa ou reativa acessos, cadastra alguém antes do primeiro login (é ligado à conta Microsoft pelo e-mail) e aprova ou recusa os pedidos de acesso. A mudança vale na próxima ação da pessoa. Para ninguém se trancar fora: você não tira o próprio papel de gestão nem se desativa, e o app nunca fica sem um gestor ativo.
 
 ### Login com o Microsoft 365
 
@@ -81,7 +85,7 @@ A sessão vale 12 h e fica guardada no navegador (por portal). Requisitos no por
 |---|---|---|
 | **Obra** | Pede insumos e acompanha cada pedido | Solicitar insumo · Acompanhamento (só os próprios) |
 | **Analista** | Monta o cadastro e envia para aprovação; pode recusar pedidos | Cadastro (fila + criação) · Insumos UAU · Acompanhamento |
-| **Gestão** | Tudo, mais: ajusta o cadastro, aprova e grava no UAU | Aprovação (fila + revisão) · todas as outras |
+| **Gestão** | Tudo, mais: ajusta o cadastro, aprova e grava no UAU, administra usuários | Aprovação (fila + revisão) · Usuários · todas as outras |
 
 A regra de quem pode o quê está em **um lugar só**: [`shared/domain/roles.ts`](shared/domain/roles.ts) (permissões por papel) e [`shared/domain/request/workflow.ts`](shared/domain/request/workflow.ts) (ações por situação). A API aplica as regras; a tela só usa as mesmas regras para esconder o que não cabe.
 

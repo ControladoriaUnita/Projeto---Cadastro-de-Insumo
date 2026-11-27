@@ -6,7 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { GUEST_OBRA_ID } from '../../../shared/domain/access'
 import { isRoleKey, permissionsFor } from '../../../shared/domain/roles'
 import type { Actor } from '../../application/context'
-import type { EventRecord, NewRequestRecord, ProfileRecord, Repositories, RequestPatch, RequestRecord } from '../../application/ports'
+import type { AccessRequestRecord, EventRecord, ManagedProfile, NewRequestRecord, ProfilePatch, ProfileRecord, Repositories, RequestPatch, RequestRecord } from '../../application/ports'
 
 const REQUEST_COLUMNS: Record<keyof RequestRecord, string> = {
   id: 'id',
@@ -83,9 +83,33 @@ function check<T>(result: { data: T; error: { message: string } | null }): T {
 const UNIQUE_VIOLATION = '23505'
 
 const PROFILE_COLUMNS = 'id, full_name, email, active, entra_oid'
+const MANAGED_PROFILE_COLUMNS = 'id, full_name, email, active, entra_oid, role, work_name, last_login_at, created_at'
 
 function profileFromDb(row: { id: string; full_name: string; email: string | null; active: boolean; entra_oid: string | null }): ProfileRecord {
   return { id: row.id, fullName: row.full_name, email: row.email, active: row.active, entraOid: row.entra_oid }
+}
+
+function managedFromDb(row: DbRow): ManagedProfile {
+  const role = isRoleKey(row.role) ? row.role : 'obra'
+  return {
+    ...profileFromDb(row as Parameters<typeof profileFromDb>[0]),
+    role,
+    workName: (row.work_name as string | null) ?? null,
+    lastLoginAt: (row.last_login_at as string | null) ?? null,
+    createdAt: (row.created_at as string | null) ?? null,
+  }
+}
+
+function accessRequestFromDb(row: DbRow): AccessRequestRecord {
+  return {
+    id: String(row.id),
+    email: String(row.email),
+    fullName: String(row.full_name),
+    requestedRole: isRoleKey(row.requested_role) ? row.requested_role : 'obra',
+    workName: (row.work_name as string | null) ?? null,
+    message: (row.message as string | null) ?? null,
+    createdAt: String(row.created_at),
+  }
 }
 
 export function createSupabaseRepositories(db: SupabaseClient): Repositories {
@@ -110,6 +134,18 @@ export function createSupabaseRepositories(db: SupabaseClient): Repositories {
         if (error) throw new Error(`Supabase: ${error.message}`)
         return 'created'
       },
+      async listPending() {
+        const rows = check(await db.from('access_requests').select('*').eq('status', 'pendente').order('created_at', { ascending: true }))
+        return ((rows ?? []) as DbRow[]).map(accessRequestFromDb)
+      },
+      async resolve(id, { status, approvedRole, notes }) {
+        const at = new Date().toISOString()
+        const patch: DbRow = { status, approved_role: approvedRole, reviewed_at: at }
+        if (notes !== null) patch.notes = notes
+        if (status === 'atendido') patch.fulfilled_at = at
+        const rows = check(await db.from('access_requests').update(patch).eq('id', id).eq('status', 'pendente').select('id'))
+        return (rows ?? []).length > 0
+      },
     },
     identity: {
       async loadActor(userId): Promise<Actor | null> {
@@ -132,7 +168,7 @@ export function createSupabaseRepositories(db: SupabaseClient): Repositories {
       async createProfile(input) {
         const { data, error } = await db
           .from('profiles')
-          .insert({ full_name: input.fullName, email: input.email.toLowerCase(), role: input.role, entra_oid: input.entraOid, active: true })
+          .insert({ full_name: input.fullName, email: input.email.toLowerCase(), role: input.role, work_name: input.workName ?? null, entra_oid: input.entraOid, active: true })
           .select(PROFILE_COLUMNS)
           .single()
         if (error?.code === UNIQUE_VIOLATION) {
@@ -145,6 +181,23 @@ export function createSupabaseRepositories(db: SupabaseClient): Repositories {
       },
       async recordLogin(id, { entraOid, at }) {
         check(await db.from('profiles').update({ entra_oid: entraOid, last_login_at: at.toISOString() }).eq('id', id))
+      },
+      async listProfiles() {
+        const rows = check(await db.from('profiles').select(MANAGED_PROFILE_COLUMNS).order('full_name'))
+        return ((rows ?? []) as DbRow[]).map(managedFromDb)
+      },
+      async getProfile(id) {
+        const row = check(await db.from('profiles').select(MANAGED_PROFILE_COLUMNS).eq('id', id).maybeSingle())
+        return row ? managedFromDb(row as DbRow) : null
+      },
+      async updateProfile(id, patch: ProfilePatch) {
+        const columns: DbRow = { updated_at: new Date().toISOString() }
+        if (patch.fullName !== undefined) columns.full_name = patch.fullName
+        if (patch.role !== undefined) columns.role = patch.role
+        if (patch.workName !== undefined) columns.work_name = patch.workName
+        if (patch.active !== undefined) columns.active = patch.active
+        const row = check(await db.from('profiles').update(columns).eq('id', id).select(MANAGED_PROFILE_COLUMNS).maybeSingle())
+        return row ? managedFromDb(row as DbRow) : null
       },
     },
     requests: {

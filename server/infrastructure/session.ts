@@ -68,7 +68,8 @@ export async function openSession(headers: { authorization: string | null; cooki
   }
   const userId = DEMO_USERS.some((u) => u.id === headers.demoUser) ? headers.demoUser! : DEMO_USERS[0]!.id
   const actor = await repos.identity.loadActor(userId)
-  return actor ? { status: 'ok', session: { repos, actor } } : { status: 'unauthenticated' }
+  // Usuário de demonstração desativado na tela de usuários
+  return actor ? { status: 'ok', session: { repos, actor } } : { status: 'inactive' }
 }
 
 /** Domínios de e-mail aceitos no pedido de acesso (ACCESS_REQUEST_DOMAINS, separados por vírgula). */

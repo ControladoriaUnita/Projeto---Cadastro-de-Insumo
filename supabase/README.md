@@ -33,11 +33,9 @@ Qualquer pessoa da Unità entra com a conta Microsoft 365. No **primeiro login**
 o perfil dela, **já ativo, como obra** (nome e e-mail vêm da Microsoft): ela já pode solicitar
 insumos e acompanhar os próprios pedidos.
 
-Para analista ou gestão, quem precisa clica em **"Solicitar acesso"** no login:
-
-1. **Table Editor → `access_requests`**: veja os pedidos com `status = pendente`.
-2. Mude o papel da pessoa em `profiles` (passo 3) e marque o pedido como `atendido`
-   (ou `recusado`). O campo `notes` é para anotações internas.
+Papéis, obra padrão, ativar/desativar e os pedidos de acesso (**"Solicitar acesso"** no login)
+são administrados no próprio app, na tela **Usuários** (só gestão). O SQL abaixo só é
+necessário para definir o **primeiro gestor**.
 
 Também dá para cadastrar alguém **antes** do primeiro login: insira o perfil com o e-mail
 corporativo; no login a Microsoft é ligada a ele pelo e-mail.

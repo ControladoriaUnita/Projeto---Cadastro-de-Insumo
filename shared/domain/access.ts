@@ -16,7 +16,7 @@ export const DEFAULT_CORPORATE_DOMAINS = ['unitaengenharia.com.br']
 export const ROLE_DESCRIPTIONS: Record<RoleKey, string> = {
   obra: 'Solicita insumos novos e acompanha cada pedido.',
   analista: 'Monta o cadastro dos insumos e envia para aprovação.',
-  gestor: 'Revisa, aprova e grava os insumos no UAU.',
+  gestor: 'Revisa, aprova e grava os insumos no UAU, e administra os usuários.',
 }
 
 export function emailDomain(email: string): string {
