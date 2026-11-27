@@ -9,6 +9,9 @@ import { AuthLayout } from './AuthLayout'
  */
 const NOTICE_KEY = 'insumos.comunicado.login-microsoft.v1'
 
+/** Contato do TI para senha do e-mail institucional */
+export const TI_EMAIL = 'suporte.ti@unitaengenharia.com.br'
+
 function readSeen(): boolean {
   try {
     return localStorage.getItem(NOTICE_KEY) === 'visto'
@@ -72,7 +75,10 @@ export function LoginNotice({ onContinue }: { onContinue: () => void }) {
         ))}
       </ul>
       <Alert tone="warning" title="Não sabe sua senha?" className="mt-5">
-        Procure o <strong>TI</strong> para recuperar ou redefinir a senha do seu e-mail institucional.
+        Procure o <strong>TI</strong> para recuperar ou redefinir a senha do seu e-mail institucional:
+        <a href={`mailto:${TI_EMAIL}`} className="mt-1 block font-semibold break-words text-primary hover:underline">
+          {TI_EMAIL}
+        </a>
       </Alert>
       <Button variant="primary" className="mt-6 w-full" icon={<ArrowRight className="size-4" />} onClick={onContinue} autoFocus>
         Entendi, ir para o login
