@@ -77,8 +77,33 @@ export interface RequestRepository {
   listEventsOf(requestIds: readonly string[], types: readonly RequestEventType[]): Promise<EventRecord[]>
 }
 
+/** Perfil do usuário, visto pelo login Microsoft (mesmo inativo). */
+export interface ProfileRecord {
+  id: string
+  fullName: string
+  email: string | null
+  active: boolean
+  /** Object id da conta no Microsoft Entra ID (preenchido no 1º login) */
+  entraOid: string | null
+}
+
+export interface NewProfile {
+  fullName: string
+  email: string
+  entraOid: string | null
+  role: RoleKey
+}
+
 export interface IdentityRepository {
+  /** Perfil ativo com papel e permissões; null se não existe ou está inativo */
   loadActor(userId: string): Promise<Actor | null>
+  findProfileByEntraOid(oid: string): Promise<ProfileRecord | null>
+  /** Busca pelo e-mail sem diferenciar maiúsculas */
+  findProfileByEmail(email: string): Promise<ProfileRecord | null>
+  /** Cria um perfil já ativo (conta nova da organização entra como obra) */
+  createProfile(input: NewProfile): Promise<ProfileRecord>
+  /** Guarda o object id da Microsoft e a hora do último login */
+  recordLogin(id: string, data: { entraOid: string | null; at: Date }): Promise<void>
 }
 
 export interface NewAccessRequest {

@@ -17,9 +17,9 @@ import { useCreateRequest, useCreateRequests } from './api'
 import { ImportSpreadsheetDialog } from './components/ImportSpreadsheetDialog'
 import { WorkSelect } from './components/RequestFields'
 
-/** Campos que valem para o envio inteiro (cabeçalho), não para cada insumo */
-type RequesterField = 'workName' | 'requesterName' | 'requesterEmail'
-const REQUESTER_FIELDS: readonly string[] = ['workName', 'requesterName', 'requesterEmail'] satisfies RequesterField[]
+/** Campo que vale para o envio inteiro (cabeçalho), não para cada insumo */
+type RequesterField = 'workName'
+const REQUESTER_FIELDS: readonly string[] = ['workName'] satisfies RequesterField[]
 type ItemInput = Omit<CreateRequestInput, RequesterField>
 type Kind = CreateRequestInput['kind']
 type ItemErrors = Partial<Record<keyof ItemInput, string>>
@@ -68,11 +68,6 @@ export function NewRequestPage() {
 
   const [workName, setWorkName] = useState(user?.workName ?? '')
   const [workError, setWorkError] = useState<string | undefined>()
-  // Obra sem login digita o nome; quem entrou já vem preenchido
-  const [requesterName, setRequesterName] = useState(user && !user.guest ? user.fullName : '')
-  const [requesterError, setRequesterError] = useState<string | undefined>()
-  const [requesterEmail, setRequesterEmail] = useState(user && !user.guest ? (user.email ?? '') : '')
-  const [emailError, setEmailError] = useState<string | undefined>()
   const [items, setItems] = useState<Item[]>(() => [emptyItem()])
   const [errors, setErrors] = useState<Record<number, ItemErrors>>({})
   const [activeKey, setActiveKey] = useState(items[0]!.key)
@@ -112,7 +107,7 @@ export function NewRequestPage() {
     const nextErrors: Record<number, ItemErrors> = {}
     imported.forEach((item, i) => {
       // Campos faltando + tipo/urgência não reconhecidos na planilha
-      const found = { ...validateItem(item, { workName, requesterName, requesterEmail }).errors, ...rows[i]!.issues }
+      const found = { ...validateItem(item, { workName }).errors, ...rows[i]!.issues }
       if (Object.keys(found).length) nextErrors[item.key] = found
     })
     setItems([...keep, ...imported])
@@ -131,14 +126,8 @@ export function NewRequestPage() {
     const work = workName.trim()
     const wErr = work.length < 2 ? 'Informe a obra.' : undefined
     setWorkError(wErr)
-    const requester = requesterName.trim()
-    const rErr = requester.length < 3 ? 'Informe o nome do solicitante.' : undefined
-    setRequesterError(rErr)
-    const email = createRequestSchema.shape.requesterEmail.safeParse(requesterEmail)
-    const eErr = email.success ? undefined : email.error.issues[0]?.message
-    setEmailError(eErr)
     const results = items.map((i) => {
-      const r = validateItem(i, { workName: work, requesterName: requester, requesterEmail })
+      const r = validateItem(i, { workName: work })
       // Tipo/urgência não reconhecidos na planilha seguem bloqueando até a pessoa escolher na tela
       const { kind, urgency } = errors[i.key] ?? {}
       const sheetIssues = Object.fromEntries(Object.entries({ kind, urgency }).filter(([, v]) => v)) as ItemErrors
@@ -148,7 +137,7 @@ export function NewRequestPage() {
     const nextErrors = Object.fromEntries(results.filter((r) => !r.data).map((r) => [r.key, r.errors]))
     setErrors(nextErrors)
     const firstBad = results.find((r) => !r.data)
-    if (wErr || rErr || eErr || firstBad) {
+    if (wErr || firstBad) {
       if (firstBad) {
         setActiveKey(firstBad.key)
         document.getElementById(`item-${firstBad.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -190,29 +179,12 @@ export function NewRequestPage() {
           <Card>
             <CardHeader title="Obra" description="Vale para todos os insumos deste envio." />
             <div className="grid gap-4 px-5 py-4 sm:grid-cols-2">
-              <Field label="Nome do solicitante" required error={requesterError}>
-                <Input
-                  value={requesterName}
-                  onChange={(e) => {
-                    setRequesterName(e.target.value)
-                    setRequesterError(undefined)
-                  }}
-                  autoComplete="name"
-                  maxLength={120}
-                />
+              {/* Solicitante = quem entrou com a conta Microsoft (não é digitado) */}
+              <Field label="Solicitante" hint="Vem do seu login Microsoft 365.">
+                <Input value={user?.fullName ?? ''} readOnly aria-readonly className="bg-background text-text-muted" />
               </Field>
-              <Field label="E-mail do solicitante" required error={emailError} hint="Recebe o aviso quando o insumo for aprovado ou precisar de ajuste.">
-                <Input
-                  type="email"
-                  value={requesterEmail}
-                  onChange={(e) => {
-                    setRequesterEmail(e.target.value)
-                    setEmailError(undefined)
-                  }}
-                  autoComplete="email"
-                  inputMode="email"
-                  maxLength={160}
-                />
+              <Field label="E-mail para os avisos" hint="Recebe o aviso quando o insumo for aprovado ou precisar de ajuste.">
+                <Input type="email" value={user?.email ?? ''} readOnly aria-readonly className="bg-background text-text-muted" />
               </Field>
               <Field label="Obra" required error={workError} className="sm:col-span-2">
                 <WorkSelect

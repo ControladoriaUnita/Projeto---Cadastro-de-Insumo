@@ -16,7 +16,6 @@ import {
   type AppConfigDTO,
   type UserDTO,
 } from '../../shared/contracts'
-import { GUEST_OBRA_ID } from '../../shared/domain/access'
 import { ROLE_LABELS } from '../../shared/domain/roles'
 import { AppError, toAppError, type Actor, type RequestContext } from '../application/context'
 import type { UseCaseDeps } from '../application/ports'
@@ -26,6 +25,8 @@ import { checkIntegration, sendTestEmail } from '../application/use-cases/integr
 import * as requests from '../application/use-cases/requests'
 import { listWorks } from '../application/use-cases/works'
 import { authConfig, corporateDomains, dataSource, demoUsers, openSession, publicRepositories } from '../infrastructure/session'
+import { authMode } from '../infrastructure/auth/entra'
+import { handleAuthRoute } from './auth-routes'
 import { emailProvider, getMailer } from '../infrastructure/email'
 import { envPresence } from '../infrastructure/env'
 import { getUauGateway, uauMode, uauWriteEnabled } from '../infrastructure/uau'
@@ -54,7 +55,7 @@ const query = (url: URL) => Object.fromEntries(url.searchParams)
 const optionalComment = z.object({ comment: z.string().trim().max(2000).optional() })
 
 function toUserDTO(actor: Actor): UserDTO {
-  return { ...actor, roleLabel: ROLE_LABELS[actor.role], guest: actor.id === GUEST_OBRA_ID }
+  return { ...actor, roleLabel: ROLE_LABELS[actor.role] }
 }
 
 // ----------------------------------------------------------------------------- sessão
@@ -143,8 +144,13 @@ export async function handle(req: Request): Promise<Response> {
       // Diagnóstico de deploy: modo atual e quais variáveis existem (só sim/não, nunca valores)
       return json({ ok: true, time: new Date().toISOString(), dataSource: dataSource(), uauMode: uauMode(), env: envPresence() }, 200, correlationId)
     }
-    // Pública: a tela precisa saber, antes do login, se usa Supabase ou o modo demonstração
+    // Pública: a tela precisa saber, antes do login, se usa o login Microsoft ou o modo demonstração
     if (path === '/auth-config') return json(authConfig(), 200, correlationId)
+    // Públicas: login Microsoft em popup (/auth/microsoft/login e /callback) e saída
+    if (path.startsWith('/auth/')) {
+      const res = await handleAuthRoute(req, url, path)
+      if (res) return res
+    }
     // Pública: pedido de acesso feito na tela de login (não cria conta)
     if (path === '/access-requests' && req.method === 'POST') {
       const input = parse(accessRequestSchema, await readJson(req))
@@ -155,7 +161,7 @@ export async function handle(req: Request): Promise<Response> {
       throw new AppError('DEMO_DISABLED', 'Modo demonstração desligado em produção. Configure DATA_SOURCE=supabase.', 503)
     }
     if (path === '/demo-users') {
-      if (dataSource() !== 'memory') throw new AppError('NOT_FOUND', 'Rota inexistente.', 404)
+      if (dataSource() !== 'memory' || authMode() !== 'dev') throw new AppError('NOT_FOUND', 'Rota inexistente.', 404)
       return json(demoUsers(), 200, correlationId)
     }
 
@@ -168,10 +174,14 @@ export async function handle(req: Request): Promise<Response> {
       throw new AppError(exists ? 'METHOD_NOT_ALLOWED' : 'NOT_FOUND', exists ? 'Método não permitido.' : 'Rota inexistente.', exists ? 405 : 404)
     }
 
-    const opened = await openSession({ authorization: req.headers.get('authorization'), demoUser: req.headers.get('x-demo-user') })
+    const opened = await openSession({
+      authorization: req.headers.get('authorization'),
+      cookie: req.headers.get('cookie'),
+      demoUser: req.headers.get('x-demo-user'),
+    })
     if (opened.status === 'unauthenticated') throw new AppError('UNAUTHENTICATED', 'Sessão inválida ou expirada. Entre novamente.', 401)
     if (opened.status === 'inactive') {
-      throw new AppError('PROFILE_INACTIVE', 'Seu acesso ainda não foi liberado. Peça à gestão para ativar seu perfil.', 403)
+      throw new AppError('PROFILE_INACTIVE', 'Seu acesso está desativado. Peça à gestão para liberar seu perfil.', 403)
     }
     const { session } = opened
 

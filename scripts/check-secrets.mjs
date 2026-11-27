@@ -12,7 +12,7 @@ import { join } from 'node:path'
 
 const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
 
-const SECRET_KEYS = ['UAU_INTEGRATION_TOKEN', 'UAU_PASSWORD', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY', 'GRAPH_CLIENT_SECRET']
+const SECRET_KEYS = ['UAU_INTEGRATION_TOKEN', 'UAU_PASSWORD', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY', 'GRAPH_CLIENT_SECRET', 'ENTRA_CLIENT_SECRET', 'SESSION_SECRET']
 const secrets = []
 for (const envFile of ['.env.local', '.env']) {
   const p = join(root, envFile)

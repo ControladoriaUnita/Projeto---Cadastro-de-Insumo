@@ -4,8 +4,8 @@
 import type { RoleKey } from './roles'
 
 /**
- * Obra entra sem login: todas as solicitações abertas assim ficam com este solicitante.
- * O nome de quem pediu vai no campo "Nome do solicitante" da solicitação.
+ * Solicitações antigas, de quando a obra solicitava sem login, ficam com este solicitante
+ * (no banco, requester_id vazio). Hoje toda solicitação é aberta por alguém logado.
  */
 export const GUEST_OBRA_ID = '00000000-0000-4000-8000-0000000000ff'
 

@@ -10,7 +10,6 @@ import { ApprovalQueuePage } from '@/features/approval/ApprovalQueuePage'
 import { AccessPendingPage } from '@/features/auth/AccessPendingPage'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { RequestAccessPage } from '@/features/auth/RequestAccessPage'
-import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { CatalogPage } from '@/features/catalog/CatalogPage'
 import { IntegrationPage } from '@/features/integration/IntegrationPage'
 import { DraftPage } from '@/features/drafting/DraftPage'
@@ -26,9 +25,7 @@ const P = PERMISSIONS
 
 /** Só mostra o app para quem entrou e tem perfil ativo; o resto vai para a tela certa. */
 function Protected() {
-  const { access, recovering, error } = useAuth()
-  // Link de "esqueci minha senha" caiu na página inicial: leva para definir a senha
-  if (recovering) return <Navigate to="/redefinir-senha" replace />
+  const { access, error } = useAuth()
   switch (access) {
     case 'loading':
       return (
@@ -64,7 +61,6 @@ export function App() {
   return (
     <Routes>
       <Route path="/entrar" element={<LoginPage />} />
-      <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
       <Route path="/solicitar-acesso" element={<RequestAccessPage />} />
       <Route path={PATHS.manualPrint} element={<ManualPrintPage />} />
       <Route element={<Protected />}>

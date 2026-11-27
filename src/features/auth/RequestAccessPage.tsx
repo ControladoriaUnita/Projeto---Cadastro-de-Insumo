@@ -10,7 +10,7 @@ import { api, errorMessage } from '@/lib/api'
 import { AuthLayout } from './AuthLayout'
 
 type FormErrors = Partial<Record<keyof AccessRequestInput, string>>
-// A obra não precisa de cadastro: solicita insumos sem login
+// A obra não precisa pedir: o primeiro login Microsoft já cria o perfil de obra
 const ROLES = ['analista', 'gestor'] as const satisfies readonly RoleKey[]
 
 /**

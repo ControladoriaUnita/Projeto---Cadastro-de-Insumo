@@ -5,7 +5,6 @@
  * Regra de ouro: nada é gravado no UAU antes de `approve`.
  */
 import type { ApproveResultDTO, CreateRequestBatchResultDTO, CreateRequestInput, RequestDTO, RequestDetailDTO, RequestScope } from '../../../shared/contracts'
-import { GUEST_OBRA_ID } from '../../../shared/domain/access'
 import { formatRequestNumber } from '../../../shared/format'
 import { normalizeCode, nextFreeCode } from '../../../shared/domain/insumo/code'
 import { EMPTY_DRAFT, normalizeDraft, type DraftField, type InsumoDraft } from '../../../shared/domain/insumo/draft'
@@ -166,12 +165,6 @@ const detail = (deps: UseCaseDeps, r: RequestRecord) => getRequest(deps, r.id)
 
 // ----------------------------------------------------------------------------- obra
 
-/** Obra sem login: o histórico mostra o nome digitado no campo "Nome do solicitante". */
-function asRequester(deps: UseCaseDeps, requesterName: string): UseCaseDeps {
-  const { actor } = deps.ctx
-  return actor.id === GUEST_OBRA_ID ? { ...deps, ctx: { ...deps.ctx, actor: { ...actor, fullName: requesterName } } } : deps
-}
-
 /** Campos que a obra preenche (ao abrir e ao reenviar depois de um ajuste). */
 const requestFields = (input: CreateRequestInput) => ({
   kind: input.kind,
@@ -181,8 +174,6 @@ const requestFields = (input: CreateRequestInput) => ({
   unit: input.unit,
   specification: input.specification,
   justification: input.justification,
-  requesterName: input.requesterName,
-  requesterEmail: input.requesterEmail,
 })
 
 async function insertRequest(deps: UseCaseDeps, input: CreateRequestInput, details: unknown = null): Promise<RequestRecord> {
@@ -190,7 +181,10 @@ async function insertRequest(deps: UseCaseDeps, input: CreateRequestInput, detai
   const r = await deps.repos.requests.create({
     status: 'solicitado',
     ...requestFields(input),
+    // Solicitante = quem está logado (nome e e-mail da conta Microsoft)
     requesterId: actor.id,
+    requesterName: actor.fullName,
+    requesterEmail: actor.email,
     analystId: null,
     analystName: null,
     approverId: null,
@@ -201,7 +195,7 @@ async function insertRequest(deps: UseCaseDeps, input: CreateRequestInput, detai
     confirmedAt: null,
     lastComment: null,
   })
-  await record(asRequester(deps, input.requesterName), r, 'created', null, null, details)
+  await record(deps, r, 'created', null, null, details)
   return r
 }
 
@@ -226,7 +220,7 @@ export async function createRequests(deps: UseCaseDeps, items: CreateRequestInpu
 export async function resubmitRequest(deps: UseCaseDeps, id: string, input: CreateRequestInput): Promise<RequestDetailDTO> {
   const r = await load(deps, id)
   const to: RequestStatus = r.draft && r.analystId ? 'em_cadastro' : 'solicitado'
-  await transition(asRequester(deps, input.requesterName), r, 'resubmit', to, { patch: { ...requestFields(input), lastComment: null } })
+  await transition(deps, r, 'resubmit', to, { patch: { ...requestFields(input), lastComment: null } })
   return detail(deps, r)
 }
 

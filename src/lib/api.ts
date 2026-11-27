@@ -2,9 +2,36 @@
  * Cliente HTTP da API (/api/*). O navegador nunca fala com o UAU: só com o nosso servidor.
  */
 import type { ApiErrorBody } from '@shared/contracts'
-import { getSupabase } from './supabase'
 
 const DEMO_USER_KEY = 'insumos.demoUser'
+const SESSION_KEY = 'insumos.session'
+
+/**
+ * Token da sessão do login Microsoft. Fica no localStorage do iframe (o navegador separa por
+ * portal); se o armazenamento estiver bloqueado, vale só enquanto a página estiver aberta.
+ */
+let memoryToken: { token: string; expiresAt: number } | null = null
+
+export function getSessionToken(): string | null {
+  let s = memoryToken
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (raw) s = JSON.parse(raw) as { token: string; expiresAt: number }
+  } catch {
+    /* armazenamento indisponível: usa a cópia em memória */
+  }
+  return s && s.expiresAt > Date.now() ? s.token : null
+}
+
+export function setSessionToken(token: string | null, expiresAt = 0) {
+  memoryToken = token ? { token, expiresAt } : null
+  try {
+    if (token) localStorage.setItem(SESSION_KEY, JSON.stringify(memoryToken))
+    else localStorage.removeItem(SESSION_KEY)
+  } catch {
+    /* armazenamento indisponível */
+  }
+}
 
 export function getDemoUser(): string | null {
   try {
@@ -37,16 +64,12 @@ export class ApiError extends Error {
 
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const headers: Record<string, string> = { 'content-type': 'application/json' }
-  const supabase = getSupabase()
-  if (supabase) {
-    // Login real: o servidor valida o token e lê o papel em profiles
-    const { data } = await supabase.auth.getSession()
-    if (data.session) headers.authorization = `Bearer ${data.session.access_token}`
-  } else {
-    // Modo demonstração: o servidor ignora este cabeçalho quando usa o Supabase
-    const demo = getDemoUser()
-    if (demo) headers['x-demo-user'] = demo
-  }
+  // Login Microsoft: o servidor valida o token e lê o papel em profiles
+  const token = getSessionToken()
+  if (token) headers.authorization = `Bearer ${token}`
+  // Modo demonstração: o servidor ignora este cabeçalho com AUTH_MODE=entra
+  const demo = getDemoUser()
+  if (demo) headers['x-demo-user'] = demo
   const res = await fetch(`/api${path}`, {
     method: init.method ?? 'GET',
     headers,

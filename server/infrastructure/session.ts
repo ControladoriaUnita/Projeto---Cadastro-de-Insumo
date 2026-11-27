@@ -1,16 +1,17 @@
 /**
- * Composição por requisição: escolhe os repositórios conforme DATA_SOURCE e identifica o usuário.
+ * Composição por requisição: escolhe os repositórios conforme DATA_SOURCE e identifica o usuário
+ * conforme AUTH_MODE (login Microsoft ou usuários de demonstração).
  */
 import type { AuthConfigDTO } from '../../shared/contracts'
-import { DEFAULT_CORPORATE_DOMAINS, GUEST_OBRA_ID } from '../../shared/domain/access'
-import { permissionsFor } from '../../shared/domain/roles'
-import type { Actor } from '../application/context'
+import { DEFAULT_CORPORATE_DOMAINS } from '../../shared/domain/access'
+import { AppError, type Actor } from '../application/context'
 import type { Repositories } from '../application/ports'
 import { createMemoryRepositories, getMemoryStore } from './memory/memory-repositories'
 import { DEMO_USERS, seedMemoryStore } from './memory/seed'
-import { getServiceClient, verifyAccessToken } from './supabase/client'
+import { getServiceClient } from './supabase/client'
 import { createSupabaseRepositories } from './supabase/supabase-repositories'
-import { envOption, envValue } from './env'
+import { authMode, devLoginAllowed, entraConfigured, sessionUserId } from './auth/entra'
+import { envOption } from './env'
 import { uauMode } from './uau'
 
 export type DataSource = 'memory' | 'supabase'
@@ -27,33 +28,44 @@ export interface Session {
 /**
  * Resultado da identificação:
  *  - ok: usuário autenticado e com perfil ativo;
- *  - unauthenticated: sem login ou token inválido/expirado (a tela volta para o login);
- *  - inactive: login válido, mas o perfil não existe ou ainda não foi liberado pela gestão.
+ *  - unauthenticated: sem login ou sessão inválida/expirada (a tela volta para o login);
+ *  - inactive: sessão válida, mas o perfil foi desativado pela gestão.
  */
 export type SessionResult = { status: 'ok'; session: Session } | { status: 'unauthenticated' } | { status: 'inactive' }
 
-/** Obra sem login: só solicita e acompanha as solicitações abertas sem login. */
-const GUEST_OBRA: Actor = { id: GUEST_OBRA_ID, fullName: 'Obra (sem login)', email: null, role: 'obra', workName: null, permissions: permissionsFor('obra') }
+/** Cookie da sessão (só para quem abre o app fora do iframe; no portal vale o cabeçalho Authorization). */
+export const SESSION_COOKIE = 'insumos_session'
+
+export function readCookie(header: string | null, name: string): string | null {
+  for (const part of (header ?? '').split(';')) {
+    const [k, ...v] = part.trim().split('=')
+    if (k === name) return decodeURIComponent(v.join('='))
+  }
+  return null
+}
 
 /**
- * - supabase: sem token, entra como obra (sem login); com token, exige JWT válido do
- *   Supabase Auth e um perfil ativo em `profiles`.
- * - memory: modo demonstração; o usuário vem do cabeçalho x-demo-user (padrão: gestor).
+ * - AUTH_MODE=entra: sessão emitida pelo login Microsoft (Authorization: Bearer ou cookie)
+ *   e perfil ativo em `profiles`.
+ * - AUTH_MODE=dev: usuários de demonstração (modo memória); o usuário vem do cabeçalho
+ *   x-demo-user (padrão: gestor). Nunca em produção.
  */
-export async function openSession(headers: { authorization: string | null; demoUser: string | null }): Promise<SessionResult> {
-  if (dataSource() === 'supabase') {
-    const token = headers.authorization?.replace(/^Bearer\s+/i, '')
-    const repos = createSupabaseRepositories(getServiceClient())
-    if (!token) return { status: 'ok', session: { repos, actor: GUEST_OBRA } }
-    const userId = await verifyAccessToken(token)
+export async function openSession(headers: { authorization: string | null; cookie: string | null; demoUser: string | null }): Promise<SessionResult> {
+  const repos = await publicRepositories()
+
+  if (authMode() === 'entra') {
+    if (!entraConfigured()) throw new AppError('AUTH_NOT_CONFIGURED', 'Login Microsoft ainda não configurado no servidor (ENTRA_* e SESSION_SECRET).', 503)
+    const bearer = headers.authorization?.replace(/^Bearer\s+/i, '') || null
+    const userId = sessionUserId(bearer ?? readCookie(headers.cookie, SESSION_COOKIE))
     if (!userId) return { status: 'unauthenticated' }
     const actor = await repos.identity.loadActor(userId)
     return actor ? { status: 'ok', session: { repos, actor } } : { status: 'inactive' }
   }
 
-  const store = getMemoryStore()
-  await seedMemoryStore(store, { withSampleRequests: uauMode() === 'mock' })
-  const repos = createMemoryRepositories(store)
+  if (!devLoginAllowed()) throw new AppError('AUTH_NOT_CONFIGURED', 'Login de demonstração desligado em produção. Configure AUTH_MODE=entra.', 503)
+  if (dataSource() !== 'memory') {
+    throw new AppError('AUTH_NOT_CONFIGURED', 'AUTH_MODE=dev só funciona com DATA_SOURCE=memory. Para o Supabase, use AUTH_MODE=entra.', 503)
+  }
   const userId = DEMO_USERS.some((u) => u.id === headers.demoUser) ? headers.demoUser! : DEMO_USERS[0]!.id
   const actor = await repos.identity.loadActor(userId)
   return actor ? { status: 'ok', session: { repos, actor } } : { status: 'unauthenticated' }
@@ -68,16 +80,12 @@ export function corporateDomains(): string[] {
   return fromEnv.length ? fromEnv : DEFAULT_CORPORATE_DOMAINS
 }
 
-/**
- * Configuração pública para a tela de login (sem sessão). A chave anon do Supabase é pública
- * por natureza (só permite login; as tabelas não aceitam acesso por ela).
- */
+/** Configuração pública para a tela de login (sem sessão). */
 export function authConfig(): AuthConfigDTO {
-  const supabase = dataSource() === 'supabase'
   return {
+    authMode: authMode(),
+    entraConfigured: entraConfigured(),
     dataSource: dataSource(),
-    supabaseUrl: supabase ? envValue('SUPABASE_URL') : null,
-    supabaseAnonKey: supabase ? envValue('SUPABASE_ANON_KEY') : null,
     corporateDomains: corporateDomains(),
   }
 }

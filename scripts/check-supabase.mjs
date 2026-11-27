@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 
 if (existsSync('.env.local')) process.loadEnvFile('.env.local')
 
-const required = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY']
+const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']
 const missing = required.filter((k) => !process.env[k])
 if (missing.length) {
   console.error(`Faltando no .env.local: ${missing.join(', ')}`)
@@ -21,14 +21,15 @@ for (const k of ['SUPABASE_URL']) {
     process.exit(1)
   }
 }
-if (process.env.SUPABASE_ANON_KEY === process.env.SUPABASE_SERVICE_ROLE_KEY) {
+if (process.env.SUPABASE_ANON_KEY && process.env.SUPABASE_ANON_KEY === process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.error('SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY estão iguais: a service role deve ser a chave secreta.')
   process.exit(1)
 }
 
 const auth = { persistSession: false, autoRefreshToken: false }
 const service = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth })
-const anon = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { auth })
+// Opcional: a chave anon não é mais usada pelo app (login é pelo Microsoft 365); se existir, confere o RLS
+const anon = process.env.SUPABASE_ANON_KEY ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { auth }) : null
 let failed = false
 const fail = (msg) => {
   failed = true
@@ -43,10 +44,17 @@ for (const table of ['profiles', 'insumo_requests', 'insumo_request_events', 'ac
   else console.log(`✓ ${table}: ${count} registro(s)`)
 }
 
-// O navegador (chave anon) NÃO pode ler as tabelas
-const leak = await anon.from('insumo_requests').select('id').limit(1)
-if (!leak.error && leak.data?.length) fail('a chave anon consegue ler insumo_requests — confira o RLS e as permissões')
-else console.log('✓ chave anon sem acesso às tabelas (correto)')
+// Login Microsoft: colunas da migration 005
+const entra = await service.from('profiles').select('entra_oid, last_login_at').limit(1)
+if (entra.error) fail(`profiles sem entra_oid/last_login_at: ${entra.error.message} — aplique a migration 005`)
+else console.log('✓ profiles pronto para o login Microsoft (migration 005)')
+
+// A chave anon NÃO pode ler as tabelas
+if (anon) {
+  const leak = await anon.from('insumo_requests').select('id').limit(1)
+  if (!leak.error && leak.data?.length) fail('a chave anon consegue ler insumo_requests — confira o RLS e as permissões')
+  else console.log('✓ chave anon sem acesso às tabelas (correto)')
+}
 
 const { data: profiles, error } = await service.from('profiles').select('email, role, active').order('role')
 if (error || !Array.isArray(profiles)) fail(`perfis: ${error?.message || 'sem resposta da API'}`)
