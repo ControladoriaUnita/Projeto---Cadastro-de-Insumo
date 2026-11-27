@@ -22,9 +22,13 @@ export function envValue(name: string, env: NodeJS.ProcessEnv = process.env): st
 
 /** Variáveis que o servidor usa, para o diagnóstico em /api/health (só presença, nunca valores). */
 const DIAGNOSTIC_VARS = [
+  'AUTH_MODE',
+  'ENTRA_TENANT_ID',
+  'ENTRA_CLIENT_ID',
+  'ENTRA_CLIENT_SECRET',
+  'SESSION_SECRET',
   'DATA_SOURCE',
   'SUPABASE_URL',
-  'SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
   'UAU_MODE',
   'UAU_BASE_URL',

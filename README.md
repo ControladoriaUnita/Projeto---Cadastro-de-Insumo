@@ -7,7 +7,7 @@ Obra solicita ──▶ Analista cria o cadastro e pede aprovação ──▶ Ge
                   (nada é gravado no UAU até aqui)              (InserirInsumosGeral + AtualizarInsumosGeral)
 ```
 
-Stack: **React 19 + TypeScript (strict) + Vite 7 + Tailwind CSS 4** · **Vercel Functions** · **Supabase (Auth + PostgreSQL)** · Zod · TanStack Query.
+Stack: **React 19 + TypeScript (strict) + Vite 7 + Tailwind CSS 4** · **Vercel Functions** · **Login Microsoft 365 (Entra ID)** · **Supabase (PostgreSQL)** · Zod · TanStack Query.
 Identidade visual: [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) (tokens em `src/styles/tokens.css`). Projeto independente: não depende de nenhuma outra pasta.
 
 ---
@@ -36,11 +36,42 @@ No `.env.local`:
 
 A base atual do UAU **parece ser produção** e a API **não exclui insumos** (só inativa). Só ligue `UAU_GRAVACAO=real` de propósito.
 
-### Produção (Vercel + Supabase)
+### Produção (Vercel + Supabase + Microsoft 365)
 
-1. Crie o projeto no Supabase e aplique `supabase/migrations/001_initial_schema.sql`.
-2. Crie os usuários no Supabase Auth e um registro em `profiles` para cada um (`role`: `obra`, `analista` ou `gestor`; `work_name` para a obra).
-3. Na Vercel, configure as variáveis do `.env.example` com `DATA_SOURCE=supabase`. **Nunca** prefixe credenciais com `VITE_`.
+1. Crie o projeto no Supabase e aplique as migrations de `supabase/migrations/` na ordem (ver [`supabase/README.md`](supabase/README.md)).
+2. Registre o app no Microsoft Entra ID (abaixo).
+3. Na Vercel, configure as variáveis do `.env.example` com `DATA_SOURCE=supabase` e `AUTH_MODE=entra`. **Nunca** prefixe credenciais com `VITE_`.
+4. Cadastre os perfis de analista e gestão (ver `supabase/README.md`, passo 3). Quem é da obra entra direto: o primeiro login cria o perfil como obra.
+
+### Login com o Microsoft 365
+
+Toda tela do app exige login. A pessoa entra com a conta Microsoft 365 da Unità; o **nome** e o **e-mail** do login
+preenchem o solicitante de cada pedido (é para esse e-mail que vão os avisos de aprovação, ajuste e recusa).
+
+**Registro no Entra ID** (portal.azure.com → Microsoft Entra ID → *App registrations* → *New registration*):
+
+1. *Supported account types*: **Accounts in this organizational directory only** (single tenant).
+2. *Redirect URI*: plataforma **Web**, `https://<seu-app>.vercel.app/api/auth/microsoft/callback`
+   (e, para testar no computador, `http://localhost:5174/api/auth/microsoft/callback`).
+3. *Certificates & secrets* → *New client secret*. Copie o **Value** (aparece uma vez só).
+4. *API permissions*: as delegadas `openid`, `profile` e `email` (Microsoft Graph) bastam; não precisa de consentimento de administrador.
+5. Pode ser o mesmo registro usado para o envio de e-mail (`GRAPH_*`) ou um separado.
+
+| Variável | Valor |
+|---|---|
+| `AUTH_MODE` | `entra` (login Microsoft) · `dev` (seletor de usuários de demonstração, só com `DATA_SOURCE=memory` e nunca em produção) |
+| `ENTRA_TENANT_ID` | *Directory (tenant) ID* |
+| `ENTRA_CLIENT_ID` | *Application (client) ID* |
+| `ENTRA_CLIENT_SECRET` | o *Value* do client secret |
+| `SESSION_SECRET` | texto aleatório com 32+ caracteres (assina a sessão; trocar derruba todas as sessões). Gere com `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
+| `APP_URL` | endereço público do app, **igual** ao do Redirect URI (sem `/` no fim) |
+
+**Dentro do iframe do portal:** a Microsoft não deixa a página de login abrir dentro de um iframe, então o botão
+**Entrar com Microsoft 365** abre o login num **popup**. Ao concluir, o popup entrega a sessão ao app e fecha sozinho.
+A sessão vale 12 h e fica guardada no navegador (por portal). Requisitos no portal:
+
+- Se o `<iframe>` tiver `sandbox`, inclua `allow-popups` e `allow-popups-to-escape-sandbox` (além de `allow-scripts allow-same-origin allow-forms`).
+- O bloqueador de pop-ups pode pedir para liberar o site na primeira vez; a tela avisa quando isso acontece.
 
 ---
 
@@ -97,14 +128,14 @@ Na tela de aprovação, a aba **Insumos do UAU** mostra o cadastro inteiro (busc
 
 ### Aviso por e-mail
 
-O formulário de solicitação tem o campo obrigatório **E-mail do solicitante** (a obra entra sem login, então é por ele que ela é avisada). Os avisos:
+O solicitante é quem está logado: o pedido guarda o **nome e o e-mail da conta Microsoft 365** de quem abriu, e os avisos vão para esse e-mail. Os avisos:
 
 | Quando | Para quem | Conteúdo |
 |---|---|---|
 | Insumo aprovado (inserido e confirmado no UAU) | e-mail do solicitante e analista; `EMAIL_APPROVAL_CC` em cópia | código, descrição, obra e link para a solicitação |
 | Analista devolve à obra (*requer ajuste*) | e-mail do solicitante | motivo da devolução e link para ajustar e reenviar |
 
-Uma falha no envio **não desfaz** a ação (aprovação ou devolução): fica registrada no histórico como "falha no e-mail". Solicitações antigas, sem e-mail no formulário, avisam só quem tem login.
+Uma falha no envio **não desfaz** a ação (aprovação ou devolução): fica registrada no histórico como "falha no e-mail". Solicitações antigas, sem e-mail do solicitante, avisam só quem tem perfil.
 
 | `EMAIL_PROVIDER` | Comportamento |
 |---|---|
@@ -193,7 +224,8 @@ supabase/migrations/              esquema versionado
 ## Segurança
 
 - **Credenciais só no servidor** (`.env.local` / variáveis da Vercel). O navegador nunca fala com o UAU nem recebe token, login ou senha.
-- O navegador usa o Supabase **só para login**. Tabelas com RLS ligado e sem políticas: só a API (service role) acessa, depois de validar o JWT e o papel.
+- Login pelo **Microsoft 365** (Entra ID, fluxo *authorization code* com client secret no servidor). O servidor emite uma sessão própria assinada (HMAC, `SESSION_SECRET`, 12 h); o `state` e o `nonce` do login são conferidos, e contas de outro tenant são recusadas.
+- O navegador não fala com o Supabase. Tabelas com RLS ligado e sem políticas: só a API (service role) acessa, depois de validar a sessão e o papel.
 - Gravação no UAU desligada por padrão (`UAU_GRAVACAO=simulacao`); a aprovação exige digitar o código para confirmar.
 - Antes de cada commit: `npm run check:secrets`.
 

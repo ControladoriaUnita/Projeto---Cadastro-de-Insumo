@@ -3,14 +3,13 @@ import { Alert, Button } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
 import { AuthLayout } from './AuthLayout'
 
-/** Login válido, mas o perfil ainda não foi liberado pela gestão (profiles.active = false). */
+/** Login válido, mas o perfil foi desativado pela gestão (profiles.active = false). */
 export function AccessPendingPage() {
-  const { sessionEmail, signOut } = useAuth()
+  const { signOut } = useAuth()
   return (
-    <AuthLayout title="Acesso aguardando liberação">
+    <AuthLayout title="Acesso desativado">
       <Alert tone="warning">
-        Seu login ({sessionEmail ?? 'e-mail'}) está correto, mas o acesso ainda não foi liberado. Peça à gestão para ativar seu perfil e definir seu papel
-        (obra, analista ou gestão).
+        Seu login Microsoft está correto, mas o seu acesso ao app está desativado. Peça à gestão para liberar seu perfil.
       </Alert>
       <Button className="mt-4 w-full" icon={<LogOut className="size-4" />} onClick={signOut}>
         Sair

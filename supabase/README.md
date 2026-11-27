@@ -4,7 +4,7 @@ O que fica no Supabase:
 
 | Tabela | Conteúdo |
 |---|---|
-| `profiles` | um perfil por usuário do Supabase Auth: nome, e-mail, papel (`obra`, `analista`, `gestor`), obra padrão e se está ativo |
+| `profiles` | um perfil por usuário (login Microsoft 365): nome, e-mail, papel (`obra`, `analista`, `gestor`), obra padrão e se está ativo |
 | `insumo_requests` | as solicitações, com o rascunho do cadastro (`draft`, em JSON) e o resultado no UAU |
 | `insumo_request_events` | o histórico de cada solicitação (não pode ser alterado nem apagado) |
 | `access_requests` | os pedidos de acesso feitos na tela de login |
@@ -23,25 +23,29 @@ No painel do Supabase: **SQL Editor → New query**, cole o conteúdo de cada ar
 | `002_access_requests.sql` | pedidos de acesso e criação automática do perfil aprovado |
 | `003_obra_sem_login_e_ajuste.sql` | obra solicita sem login; situação "requer ajuste" |
 | `004_email_do_solicitante.sql` | e-mail do solicitante (recebe os avisos de aprovação e de ajuste) |
+| `005_login_microsoft.sql` | login pelo Microsoft 365: perfil independente do Supabase Auth, `entra_oid` e `last_login_at` |
 
-**Importante:** desligue o cadastro aberto em **Authentication → Sign In / Providers →
-"Allow new users to sign up"**. Só a gestão cria usuários (passo 2).
+O login é pelo **Microsoft 365** (ver o README principal). O Supabase Auth não é mais usado.
 
 ## 2. Liberar um acesso (fluxo normal)
 
-Ninguém cria conta pela tela: quem precisa de acesso clica em **"Solicitar acesso"** no login.
+Qualquer pessoa da Unità entra com a conta Microsoft 365. No **primeiro login** o servidor cria
+o perfil dela, **já ativo, como obra** (nome e e-mail vêm da Microsoft): ela já pode solicitar
+insumos e acompanhar os próprios pedidos.
+
+Para analista ou gestão, quem precisa clica em **"Solicitar acesso"** no login:
 
 1. **Table Editor → `access_requests`**: veja os pedidos com `status = pendente`.
-2. Para liberar: mude `status` para **`aprovado`**. Se quiser outro papel que não o pedido,
-   preencha `approved_role` (`obra`, `analista` ou `gestor`). Para negar: `recusado`.
-   O campo `notes` é para anotações internas.
-3. **Authentication → Users → Add user → Send invitation** com o e-mail do pedido. A pessoa recebe
-   um e-mail, clica no link e define a própria senha (tela "Defina sua senha").
-4. Pronto: o banco cria o perfil **ativo**, com o nome, o papel e a obra do pedido, e marca o
-   pedido como `atendido`.
+2. Mude o papel da pessoa em `profiles` (passo 3) e marque o pedido como `atendido`
+   (ou `recusado`). O campo `notes` é para anotações internas.
 
-> Sem pedido aprovado, o usuário criado fica **inativo** (vê "Acesso aguardando liberação")
-> até ser liberado pelo passo 3.
+Também dá para cadastrar alguém **antes** do primeiro login: insira o perfil com o e-mail
+corporativo; no login a Microsoft é ligada a ele pelo e-mail.
+
+```sql
+insert into public.profiles (full_name, email, role, active)
+values ('Nome do Analista', 'analista@unitaengenharia.com.br', 'analista', true);
+```
 
 ## 3. Ajustar papéis à mão
 
@@ -72,31 +76,22 @@ Para bloquear alguém sem apagar o histórico: `update public.profiles set activ
 | No Supabase | Variável | Onde |
 |---|---|---|
 | Project URL (`https://<id>.supabase.co`, não o endereço do painel) | `SUPABASE_URL` | servidor |
-| chave `anon` / publishable | `SUPABASE_ANON_KEY` | servidor (repassa à tela de login pela rota pública `/api/auth-config`) |
+| chave `anon` / publishable | `SUPABASE_ANON_KEY` | opcional: só o `npm run check:supabase` usa, para conferir o RLS |
 | chave `service_role` / secret | `SUPABASE_SERVICE_ROLE_KEY` | **só servidor**, nunca com `VITE_` |
 
 E `DATA_SOURCE=supabase`. Localmente, no `.env.local`; na Vercel, em Settings → Environment Variables.
 
-## 5. Endereços do login (convite e "esqueci minha senha")
-
-**Authentication → URL Configuration**:
-
-- **Site URL**: o endereço do app na Vercel (ex.: `https://cadastro-insumos.vercel.app`).
-- **Redirect URLs**: adicione `https://<seu-app>.vercel.app/redefinir-senha` e, para testar no
-  computador, `http://localhost:5174/redefinir-senha`.
-
-O convite abre o Site URL e o app leva a pessoa direto para "Defina sua senha". Sem esses endereços, os links dos e-mails abrem o lugar errado.
-
 ## Como o login funciona
 
-1. A tela pergunta ao servidor (`/api/auth-config`, público) se o app usa o Supabase ou o modo demonstração.
-2. O login (e-mail e senha) é feito no Supabase Auth; o navegador recebe um token de sessão.
-3. Toda chamada à API leva o token. O servidor confere o token no Supabase, lê o perfil em
-   `profiles` e só libera quem tem `active = true`; o papel vem da coluna `role`.
-4. Login certo com perfil inativo: a tela mostra "Acesso aguardando liberação".
+1. A tela pergunta ao servidor (`/api/auth-config`, público) se o login é Microsoft (`AUTH_MODE=entra`) ou demonstração.
+2. O botão **Entrar com Microsoft 365** abre o login da Microsoft num **popup** (o app roda em iframe no portal).
+3. O servidor troca o código pelo `id_token`, acha o perfil (pelo `entra_oid` ou pelo e-mail; se não
+   existir, cria como obra) e devolve ao app um token de sessão próprio, assinado com `SESSION_SECRET`, válido por 12 h.
+4. Toda chamada à API leva o token. O servidor lê o perfil em `profiles` e só libera quem tem
+   `active = true`; o papel vem da coluna `role`. Perfil desativado vê "Acesso desativado".
 
 ## Segurança
 
 - RLS ligado em todas as tabelas, sem políticas, e sem permissão para `anon`/`authenticated`:
-  o navegador só usa o Supabase para login.
+  o navegador não fala com o Supabase.
 - Só a API (no servidor, com a chave `service_role`) lê e grava, depois de validar o login e o papel.

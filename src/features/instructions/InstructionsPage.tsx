@@ -19,7 +19,7 @@ const STEPS: { icon: LucideIcon; title: string; text: string }[] = [
   {
     icon: ClipboardList,
     title: 'Informe quem pede e para qual obra',
-    text: 'Preencha o nome do solicitante e escolha a obra (dá para digitar parte do nome para achar na lista). A obra vale para todos os insumos do envio.',
+    text: 'Entre com sua conta Microsoft 365: seu nome e e-mail já vêm preenchidos como solicitante. Escolha a obra (dá para digitar parte do nome para achar na lista). A obra vale para todos os insumos do envio.',
   },
   {
     icon: ListPlus,

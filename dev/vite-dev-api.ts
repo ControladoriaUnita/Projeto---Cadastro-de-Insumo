@@ -43,7 +43,12 @@ export function devApi(): Plugin {
           const mod = (await server.ssrLoadModule('/server/http/router.ts')) as { handle: (r: Request) => Promise<Response> }
           const response = await mod.handle(await toRequest(req))
           res.statusCode = response.status
-          response.headers.forEach((v, k) => res.setHeader(k, v))
+          response.headers.forEach((v, k) => {
+            if (k !== 'set-cookie') res.setHeader(k, v)
+          })
+          // Vários cookies (ex.: limpa o state e grava a sessão no callback do login)
+          const cookies = response.headers.getSetCookie()
+          if (cookies.length) res.setHeader('set-cookie', cookies)
           res.end(Buffer.from(await response.arrayBuffer()))
         } catch (err) {
           console.error(err)

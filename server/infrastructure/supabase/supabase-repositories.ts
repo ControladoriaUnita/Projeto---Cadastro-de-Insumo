@@ -6,7 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { GUEST_OBRA_ID } from '../../../shared/domain/access'
 import { isRoleKey, permissionsFor } from '../../../shared/domain/roles'
 import type { Actor } from '../../application/context'
-import type { EventRecord, NewRequestRecord, Repositories, RequestPatch, RequestRecord } from '../../application/ports'
+import type { EventRecord, NewRequestRecord, ProfileRecord, Repositories, RequestPatch, RequestRecord } from '../../application/ports'
 
 const REQUEST_COLUMNS: Record<keyof RequestRecord, string> = {
   id: 'id',
@@ -40,7 +40,7 @@ type DbRow = Record<string, unknown>
 /** Quantas solicitações por consulta ao buscar eventos em lote */
 const EVENT_BATCH = 100
 
-// Obra sem login não tem perfil: no banco o solicitante (e o autor do evento) fica vazio
+// Solicitações antigas da obra sem login não têm perfil: no banco o solicitante (e o autor do evento) fica vazio
 const toDbPerson = (id: string | null) => (id === GUEST_OBRA_ID ? null : id)
 
 function toDb(input: Partial<RequestRecord>): DbRow {
@@ -82,7 +82,20 @@ function check<T>(result: { data: T; error: { message: string } | null }): T {
 /** Código de erro do Postgres para violação de índice único */
 const UNIQUE_VIOLATION = '23505'
 
+const PROFILE_COLUMNS = 'id, full_name, email, active, entra_oid'
+
+function profileFromDb(row: { id: string; full_name: string; email: string | null; active: boolean; entra_oid: string | null }): ProfileRecord {
+  return { id: row.id, fullName: row.full_name, email: row.email, active: row.active, entraOid: row.entra_oid }
+}
+
 export function createSupabaseRepositories(db: SupabaseClient): Repositories {
+  async function findProfileByEmail(email: string): Promise<ProfileRecord | null> {
+    // ilike sem curingas = igualdade sem diferenciar maiúsculas
+    const pattern = email.replace(/[\\%_]/g, (c) => `\\${c}`)
+    const rows = check(await db.from('profiles').select(PROFILE_COLUMNS).ilike('email', pattern).limit(1))
+    return rows?.[0] ? profileFromDb(rows[0]) : null
+  }
+
   return {
     accessRequests: {
       async createPending(input) {
@@ -110,6 +123,28 @@ export function createSupabaseRepositories(db: SupabaseClient): Repositories {
           workName: row.work_name,
           permissions: permissionsFor(row.role),
         }
+      },
+      async findProfileByEntraOid(oid) {
+        const row = check(await db.from('profiles').select(PROFILE_COLUMNS).eq('entra_oid', oid).maybeSingle())
+        return row ? profileFromDb(row) : null
+      },
+      findProfileByEmail,
+      async createProfile(input) {
+        const { data, error } = await db
+          .from('profiles')
+          .insert({ full_name: input.fullName, email: input.email.toLowerCase(), role: input.role, entra_oid: input.entraOid, active: true })
+          .select(PROFILE_COLUMNS)
+          .single()
+        if (error?.code === UNIQUE_VIOLATION) {
+          // Dois logins simultâneos da mesma pessoa: usa o perfil que o outro criou
+          const existing = await findProfileByEmail(input.email)
+          if (existing) return existing
+        }
+        if (error || !data) throw new Error(`Supabase: ${error?.message ?? 'perfil não criado'}`)
+        return profileFromDb(data)
+      },
+      async recordLogin(id, { entraOid, at }) {
+        check(await db.from('profiles').update({ entra_oid: entraOid, last_login_at: at.toISOString() }).eq('id', id))
       },
     },
     requests: {

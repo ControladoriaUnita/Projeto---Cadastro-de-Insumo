@@ -32,17 +32,15 @@ export interface UserDTO {
   /** Obra padrão de quem é do perfil "obra" */
   workName: string | null
   permissions: string[]
-  /** Obra sem login (não tem cadastro) */
-  guest: boolean
 }
 
 /** Configuração pública (sem login): como a tela deve autenticar. */
 export interface AuthConfigDTO {
-  /** memory = modo demonstração (sem login); supabase = login pelo Supabase Auth */
+  /** entra = login Microsoft 365; dev = seletor de usuários de demonstração */
+  authMode: 'entra' | 'dev'
+  /** false = AUTH_MODE=entra, mas faltam ENTRA_* ou SESSION_SECRET no servidor */
+  entraConfigured: boolean
   dataSource: 'memory' | 'supabase'
-  supabaseUrl: string | null
-  /** Chave anon/publishable: pública por natureza, só serve para login */
-  supabaseAnonKey: string | null
   /** Domínios aceitos no pedido de acesso (ex.: unitaengenharia.com.br) */
   corporateDomains: string[]
 }
@@ -51,7 +49,7 @@ export const accessRequestSchema = z
   .object({
     fullName: z.string().trim().min(3, 'Informe seu nome completo.').max(120),
     email: z.string().trim().toLowerCase().email('E-mail inválido.').max(160),
-    // Obra não precisa de cadastro: solicita sem login
+    // Obra não precisa pedir: entra com a conta Microsoft e já pode solicitar
     requestedRole: z.enum(['analista', 'gestor']),
     workName: z.string().trim().max(120).default(''),
     message: z.string().trim().max(1000).default(''),
@@ -144,7 +142,7 @@ export interface RequestDTO {
   specification: string
   justification: string
   requester: PersonRef
-  /** E-mail informado pela obra; recebe os avisos (null em solicitações antigas) */
+  /** E-mail de quem abriu (do login); recebe os avisos (null em solicitações antigas) */
   requesterEmail: string | null
   analyst: PersonRef | null
   approver: PersonRef | null
@@ -168,15 +166,8 @@ export interface RequestDetailDTO extends RequestDTO {
 
 const text = (max: number) => z.string().trim().max(max)
 
+/** Nome e e-mail do solicitante vêm do login (não são digitados). */
 export const createRequestSchema = z.object({
-  requesterName: text(120).min(3, 'Informe o nome do solicitante.'),
-  requesterEmail: z
-    .string({ required_error: 'Informe o e-mail do solicitante.' })
-    .trim()
-    .toLowerCase()
-    .min(1, 'Informe o e-mail do solicitante.')
-    .max(160, 'E-mail muito longo.')
-    .email('E-mail inválido. Ex.: nome@unitaengenharia.com.br'),
   kind: z.enum(REQUESTABLE_KINDS),
   urgency: z.enum(['normal', 'urgente']).default('normal'),
   workName: text(160).min(2, 'Informe a obra.'),

@@ -1,5 +1,5 @@
-import { Link, NavLink, Outlet } from 'react-router-dom'
-import { LogIn, LogOut, Maximize, Minimize } from 'lucide-react'
+import { NavLink, Outlet } from 'react-router-dom'
+import { LogOut, Maximize, Minimize } from 'lucide-react'
 import logoWhite from '@/assets/brand/logo-unita-white.png'
 import { HOME_BY_ROLE, NAV } from '@/app/navigation'
 import { Button } from '@/components/ui'
@@ -57,19 +57,11 @@ export function AppShell() {
                 <span className="hidden md:inline">{isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</span>
               </Button>
             )}
-            {!demo &&
-              (user?.guest ? (
-                // Obra usa sem login; analista e gestão entram por aqui
-                <Link to="/entrar">
-                  <Button variant="inverse" size="sm" icon={<LogIn className="size-4" />}>
-                    Entrar
-                  </Button>
-                </Link>
-              ) : (
-                <Button variant="inverse" size="sm" icon={<LogOut className="size-4" />} onClick={signOut}>
-                  Sair
-                </Button>
-              ))}
+            {!demo && (
+              <Button variant="inverse" size="sm" icon={<LogOut className="size-4" />} onClick={signOut} title={user?.email ? `Sair (${user.email})` : 'Sair'}>
+                Sair
+              </Button>
+            )}
           </div>
         </div>
       </header>
