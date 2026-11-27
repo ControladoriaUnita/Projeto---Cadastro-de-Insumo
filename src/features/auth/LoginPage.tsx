@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { Alert, Button } from '@/components/ui'
 import { useAuth } from '@/lib/auth'
 import { AuthLayout } from './AuthLayout'
+import { LoginNotice, useLoginNotice } from './LoginNotice'
 
 /** Logo da Microsoft (quatro quadrados), como pede o guia de marca para "Entrar com a Microsoft". */
 function MicrosoftLogo() {
@@ -21,9 +22,12 @@ export function LoginPage() {
   const { access, demo, entraConfigured, signIn } = useAuth()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const notice = useLoginNotice()
 
   // Já entrou, ou o servidor está em modo demonstração (sem login)
   if (demo || access === 'ready' || access === 'inactive') return <Navigate to="/" replace />
+  // Comunicado do novo login: aparece uma vez por navegador, antes da tela de login
+  if (notice.pending) return <LoginNotice onContinue={notice.dismiss} />
 
   const enter = async () => {
     setLoading(true)
@@ -55,6 +59,7 @@ export function LoginPage() {
         </Button>
         {loading && <p className="text-center text-sm text-text-muted">Conclua o login na janela da Microsoft que abriu.</p>}
         {error && <Alert tone="error">{error}</Alert>}
+        <p className="text-center text-xs text-text-muted">Não sabe a senha do seu e-mail institucional? Procure o TI.</p>
       </div>
       <div className="mt-6 border-t border-border pt-4 text-center text-sm text-text-muted">
         Quem é da obra entra direto e já pode solicitar insumos.
