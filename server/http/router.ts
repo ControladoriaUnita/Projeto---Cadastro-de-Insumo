@@ -10,7 +10,10 @@ import {
   commentSchema,
   createRequestBatchSchema,
   createRequestSchema,
+  createUserSchema,
   listRequestsQuerySchema,
+  resolveAccessRequestSchema,
+  updateUserSchema,
   saveDraftSchema,
   type ApiErrorBody,
   type AppConfigDTO,
@@ -23,6 +26,7 @@ import { submitAccessRequest } from '../application/use-cases/access-requests'
 import * as catalog from '../application/use-cases/catalog'
 import { checkIntegration, sendTestEmail } from '../application/use-cases/integration'
 import * as requests from '../application/use-cases/requests'
+import * as users from '../application/use-cases/users'
 import { listWorks } from '../application/use-cases/works'
 import { authConfig, corporateDomains, dataSource, demoUsers, openSession, publicRepositories } from '../infrastructure/session'
 import { authMode } from '../infrastructure/auth/entra'
@@ -99,6 +103,14 @@ route('GET', '/catalog/similar', async ({ deps, url }) => catalog.findSimilarIte
 route('GET', '/catalog/draft-context', async ({ deps, url }) =>
   catalog.getDraftContext(deps, url.searchParams.get('requestId') ? parse(uuidParam, url.searchParams.get('requestId')) : undefined))
 route('GET', '/catalog/items/:codigo', async ({ deps, params }) => catalog.getCatalogItem(deps, parse(z.string().max(20), params.codigo)))
+
+// ----------------------------------------------------------------------------- usuários e permissões (gestão)
+route('GET', '/admin/users', async ({ deps }) => users.listUsers(deps))
+route('POST', '/admin/users', async ({ deps, body }) => users.createUser(deps, parse(createUserSchema, await body()), { corporateDomains: corporateDomains() }), 201)
+route('PATCH', '/admin/users/:id', async ({ deps, params, body }) => users.updateUser(deps, parse(uuidParam, params.id), parse(updateUserSchema, await body())))
+route('GET', '/admin/access-requests', async ({ deps }) => users.listAccessRequests(deps))
+route('POST', '/admin/access-requests/:id/resolve', async ({ deps, params, body }) =>
+  users.resolveAccessRequest(deps, parse(uuidParam, params.id), parse(resolveAccessRequestSchema, await body())))
 
 // ----------------------------------------------------------------------------- integração
 route('GET', '/integration/uau', async ({ deps }) => checkIntegration(deps, { emailProvider: emailProvider() }))

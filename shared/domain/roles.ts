@@ -3,7 +3,7 @@
  *
  *   obra      → solicita insumos e acompanha as próprias solicitações
  *   analista  → monta o cadastro do insumo e envia para aprovação (nada vai para o UAU)
- *   gestor    → tudo: revisa, ajusta, insere no UAU e confirma (muda a situação)
+ *   gestor    → tudo: revisa, ajusta, insere no UAU e confirma (muda a situação) e administra usuários
  */
 
 export type RoleKey = 'obra' | 'analista' | 'gestor'
@@ -31,6 +31,8 @@ export const PERMISSIONS = {
   draftEdit: 'draft.edit',
   /** Aprovar: inserir no UAU e confirmar a situação do insumo */
   approvalDecide: 'approval.decide',
+  /** Usuários e permissões: papel, obra padrão, ativar/desativar e pedidos de acesso */
+  usersManage: 'users.manage',
 } as const
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]

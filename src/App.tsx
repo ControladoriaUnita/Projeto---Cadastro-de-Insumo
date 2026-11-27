@@ -12,6 +12,7 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { RequestAccessPage } from '@/features/auth/RequestAccessPage'
 import { CatalogPage } from '@/features/catalog/CatalogPage'
 import { IntegrationPage } from '@/features/integration/IntegrationPage'
+import { UsersPage } from '@/features/users/UsersPage'
 import { DraftPage } from '@/features/drafting/DraftPage'
 import { DraftQueuePage } from '@/features/drafting/DraftQueuePage'
 import { InstructionsPage } from '@/features/instructions/InstructionsPage'
@@ -78,6 +79,7 @@ export function App() {
         <Route path={PATHS.approval} element={guard([P.approvalDecide], <ApprovalQueuePage />)} />
         <Route path="/aprovacao/:id" element={guard([P.approvalDecide], <ApprovalPage />)} />
         <Route path={PATHS.integration} element={guard([P.approvalDecide], <IntegrationPage />)} />
+        <Route path={PATHS.users} element={guard([P.usersManage], <UsersPage />)} />
         <Route path="*" element={<Home />} />
       </Route>
     </Routes>

@@ -92,7 +92,18 @@ export interface NewProfile {
   email: string
   entraOid: string | null
   role: RoleKey
+  workName?: string | null
 }
+
+/** Perfil completo, para a tela de usuários da gestão */
+export interface ManagedProfile extends ProfileRecord {
+  role: RoleKey
+  workName: string | null
+  lastLoginAt: string | null
+  createdAt: string | null
+}
+
+export type ProfilePatch = Partial<Pick<ManagedProfile, 'fullName' | 'role' | 'workName' | 'active'>>
 
 export interface IdentityRepository {
   /** Perfil ativo com papel e permissões; null se não existe ou está inativo */
@@ -104,6 +115,10 @@ export interface IdentityRepository {
   createProfile(input: NewProfile): Promise<ProfileRecord>
   /** Guarda o object id da Microsoft e a hora do último login */
   recordLogin(id: string, data: { entraOid: string | null; at: Date }): Promise<void>
+  listProfiles(): Promise<ManagedProfile[]>
+  getProfile(id: string): Promise<ManagedProfile | null>
+  /** null = perfil não existe */
+  updateProfile(id: string, patch: ProfilePatch): Promise<ManagedProfile | null>
 }
 
 export interface NewAccessRequest {
@@ -114,9 +129,18 @@ export interface NewAccessRequest {
   message: string | null
 }
 
+export interface AccessRequestRecord extends NewAccessRequest {
+  id: string
+  createdAt: string
+}
+
 export interface AccessRequestRepository {
   /** Grava o pedido; 'duplicate' quando já existe pedido em aberto para o e-mail. */
   createPending(input: NewAccessRequest): Promise<'created' | 'duplicate'>
+  /** Pedidos pendentes, mais antigos primeiro */
+  listPending(): Promise<AccessRequestRecord[]>
+  /** Fecha um pedido pendente; false = não existe ou já foi decidido */
+  resolve(id: string, outcome: { status: 'atendido' | 'recusado'; approvedRole: RoleKey | null; notes: string | null }): Promise<boolean>
 }
 
 export interface Repositories {

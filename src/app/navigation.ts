@@ -16,6 +16,7 @@ export const PATHS = {
   approve: (id: string) => `/aprovacao/${id}`,
   catalog: '/catalogo',
   integration: '/integracao',
+  users: '/usuarios',
 } as const
 
 export interface NavItem {
@@ -34,6 +35,7 @@ export const NAV: NavItem[] = [
   { to: PATHS.approval, label: 'Aprovação', permission: PERMISSIONS.approvalDecide },
   { to: PATHS.catalog, label: 'Insumos UAU', permission: PERMISSIONS.catalogRead },
   { to: PATHS.integration, label: 'Integração', permission: PERMISSIONS.approvalDecide },
+  { to: PATHS.users, label: 'Usuários', permission: PERMISSIONS.usersManage },
 ]
 
 export const HOME_BY_ROLE: Record<RoleKey, string> = {
