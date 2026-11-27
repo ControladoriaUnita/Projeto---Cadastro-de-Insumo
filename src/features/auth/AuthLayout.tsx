@@ -1,27 +1,22 @@
 import type { ReactNode } from 'react'
-import logo from '@/assets/brand/logo-unita.png'
-import pattern from '@/assets/brand/pattern-un.png'
-import { Card } from '@/components/ui'
+import { UnitaLogin } from '@/components/UnitaLogin'
 
-/** Tela de entrada (DESIGN_SYSTEM §7): fundo neutro, padrão "Diversos UN" a 7%, logo 48px, card max-w-md p-8. */
+/**
+ * Tela de entrada no modelo único da Unità ("Kit - Tela de Login Unità", igual ao Cadastro de Fornecedores):
+ * painel grafite da marca à esquerda e cartão de acesso à direita. O visual vem de public/unita-login/.
+ */
 export function AuthLayout({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
   return (
-    <div className="relative flex min-h-full items-center justify-center overflow-hidden bg-background px-4 py-12">
-      {/* Padrão "Diversos UN" repetido na horizontal para cobrir toda a largura da parte inferior */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-repeat-x bg-[length:auto_100%] opacity-[0.07]"
-        style={{ backgroundImage: `url(${pattern})` }}
-      />
-      <div className="relative w-full max-w-md">
-        <img src={logo} alt="Unità Engenharia" className="mx-auto mb-8 h-12" />
-        <Card className="p-8">
-          <p className="text-xs font-semibold tracking-wider text-primary uppercase">Cadastro de Insumos</p>
-          <h1 className="mt-1 text-xl font-semibold">{title}</h1>
-          {description && <p className="mt-1 text-sm text-text-muted">{description}</p>}
-          <div className="mt-6">{children}</div>
-        </Card>
-      </div>
-    </div>
+    <UnitaLogin
+      area="Suprimentos"
+      ferramenta="Cadastro de insumos"
+      descricao="Solicitação, análise e cadastro de insumos no UAU em um só fluxo."
+      titulo={title}
+      subtitulo={description ?? null}
+      // O login é em popup e os erros aparecem no próprio cartão: não lemos ?erro= do endereço
+      erro={null}
+    >
+      {children}
+    </UnitaLogin>
   )
 }

@@ -1,21 +1,10 @@
 import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Alert, Button } from '@/components/ui'
+import { Alert } from '@/components/ui'
+import { LogoMicrosoft } from '@/components/UnitaLogin'
 import { useAuth } from '@/lib/auth'
 import { AuthLayout } from './AuthLayout'
 import { LoginNotice, TI_EMAIL, useLoginNotice } from './LoginNotice'
-
-/** Logo da Microsoft (quatro quadrados), como pede o guia de marca para "Entrar com a Microsoft". */
-function MicrosoftLogo() {
-  return (
-    <svg viewBox="0 0 21 21" className="size-4" aria-hidden>
-      <rect x="1" y="1" width="9" height="9" fill="var(--color-ms-red)" />
-      <rect x="11" y="1" width="9" height="9" fill="var(--color-ms-green)" />
-      <rect x="1" y="11" width="9" height="9" fill="var(--color-ms-blue)" />
-      <rect x="11" y="11" width="9" height="9" fill="var(--color-ms-yellow)" />
-    </svg>
-  )
-}
 
 /** Login com a conta Microsoft 365 da empresa, em popup (o app roda em iframe no portal). */
 export function LoginPage() {
@@ -42,7 +31,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthLayout title="Entrar" description="Use sua conta Microsoft 365 da Unità (o mesmo e-mail e senha do Outlook e do Teams).">
+    <AuthLayout title="Bem-vindo" description="Use sua conta Microsoft 365 da Unità (o mesmo e-mail e senha do Outlook e do Teams).">
       {access === 'error' && (
         <Alert tone="error" className="mb-4">
           Não foi possível falar com o servidor. Tente recarregar a página.
@@ -54,9 +43,10 @@ export function LoginPage() {
         </Alert>
       )}
       <div className="grid gap-4">
-        <Button variant="primary" loading={loading} icon={<MicrosoftLogo />} onClick={enter} disabled={!entraConfigured}>
-          Entrar com Microsoft 365
-        </Button>
+        <button type="button" className="ul-botao" onClick={enter} disabled={!entraConfigured || loading}>
+          {loading ? <span className="ul-girando" /> : <LogoMicrosoft />}
+          {loading ? 'Abrindo a Microsoft…' : 'Entrar com Microsoft 365'}
+        </button>
         {loading && <p className="text-center text-sm text-text-muted">Conclua o login na janela da Microsoft que abriu.</p>}
         {error && <Alert tone="error">{error}</Alert>}
         <p className="text-center text-xs text-text-muted">
